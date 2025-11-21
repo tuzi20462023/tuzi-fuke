@@ -2,9 +2,74 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- 后台模式支持 -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>location</string>
 	</array>
+
+	<!-- GPS定位权限说明 -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>地球新主需要访问您的位置来显示您在末世地图上的位置，记录您的开拓轨迹，并帮助您圈占虚拟土地。</string>
+
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>地球新主需要持续访问您的位置来记录您的开拓轨迹，即使在应用在后台运行时也能追踪您的移动路径。</string>
+
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>地球新主需要持续访问您的位置来记录您的开拓轨迹，即使在应用在后台或锁屏时也能继续追踪。这样您可以在行走时将手机放入口袋。</string>
+
+	<!-- 运动传感器权限（防作弊检测） -->
+	<key>NSMotionUsageDescription</key>
+	<string>地球新主需要访问运动传感器来检测您的活动类型（步行、跑步等），以确保游戏公平性，防止使用交通工具作弊。</string>
+
+	<!-- URL Scheme配置（预留第三方登录） -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.earthlord.tuzi-fuke</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tuzi-fuke</string>
+			</array>
+		</dict>
+		<!-- Google登录URL Scheme（预留） -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Google Sign In</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.YOUR-GOOGLE-CLIENT-ID</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- 设备兼容性要求 -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>location-services</string>
+		<string>gps</string>
+	</array>
+
+	<!-- 支持的界面方向 -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- 应用显示名称 -->
+	<key>CFBundleDisplayName</key>
+	<string>地球新主</string>
+
+	<!-- 最小iOS版本要求 -->
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
 </dict>
 </plist>
