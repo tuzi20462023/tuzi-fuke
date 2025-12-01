@@ -193,7 +193,18 @@ class StoreKitManager: ObservableObject {
     // MARK: - 检查是否已购买
 
     func isPurchased(_ productID: String) -> Bool {
-        return purchasedProductIDs.contains(productID)
+        // 先检查 StoreKit 记录
+        if purchasedProductIDs.contains(productID) {
+            return true
+        }
+
+        // 再检查数据库中是否已有该设备
+        if let deviceType = ProductIDs.deviceType(for: productID) {
+            let hasDevice = DeviceManager.shared.devices.contains { $0.deviceType == deviceType }
+            return hasDevice
+        }
+
+        return false
     }
 
     // MARK: - 私有方法

@@ -10,6 +10,7 @@ import StoreKit
 
 struct DeviceStoreView: View {
     @StateObject private var storeManager = StoreKitManager.shared
+    @StateObject private var deviceManager = DeviceManager.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showSuccessAlert = false
     @State private var purchasedProductName = ""
@@ -109,6 +110,10 @@ struct DeviceStoreView: View {
             }
         } message: {
             Text("恭喜获得「\(purchasedProductName)」！\n现在可以发送消息了。")
+        }
+        .task {
+            // 打开商店时刷新设备列表，确保已拥有状态正确
+            await deviceManager.loadDevices()
         }
     }
 
