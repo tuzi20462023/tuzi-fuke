@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ChatView: View {
     @StateObject private var chatManager = ChatManager.shared
+    @StateObject private var deviceManager = DeviceManager.shared
     @State private var messageText: String = ""
     @State private var showError: Bool = false
     @FocusState private var isInputFocused: Bool
@@ -18,6 +19,9 @@ struct ChatView: View {
             VStack(spacing: 0) {
                 // 连接状态栏
                 connectionStatusBar
+
+                // 设备状态栏
+                deviceStatusBar
 
                 // 消息列表
                 messageList
@@ -41,6 +45,7 @@ struct ChatView: View {
             }
         }
         .task {
+            await deviceManager.loadDevices()
             await chatManager.start()
         }
         .alert("发送失败", isPresented: $showError) {
@@ -73,6 +78,82 @@ struct ChatView: View {
         .background(Color(.systemGray6))
     }
 
+    // MARK: - 设备状态栏
+    private var deviceStatusBar: some View {
+        HStack(spacing: 8) {
+            if let device = deviceManager.activeDevice {
+                // 设备图标
+                Image(systemName: device.deviceType.icon)
+                    .foregroundColor(device.canSend ? .blue : .orange)
+
+                // 设备名称
+                Text(device.displayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+
+                // 发送能力指示
+                if device.canSend {
+                    Text("可收发")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.2))
+                        .foregroundColor(.green)
+                        .cornerRadius(4)
+                } else {
+                    Text("仅接收")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.2))
+                        .foregroundColor(.orange)
+                        .cornerRadius(4)
+                }
+
+                Spacer()
+
+                // 电池状态
+                HStack(spacing: 2) {
+                    Image(systemName: batteryIcon(level: device.batteryLevel))
+                        .foregroundColor(batteryColor(level: device.batteryLevel))
+                    Text("\(Int(device.batteryLevel))%")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .foregroundColor(.red)
+                Text("无通讯设备")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+        .background(Color(.systemGray6).opacity(0.5))
+    }
+
+    // 电池图标
+    private func batteryIcon(level: Double) -> String {
+        switch level {
+        case 75...100: return "battery.100"
+        case 50..<75: return "battery.75"
+        case 25..<50: return "battery.50"
+        case 1..<25: return "battery.25"
+        default: return "battery.0"
+        }
+    }
+
+    // 电池颜色
+    private func batteryColor(level: Double) -> Color {
+        switch level {
+        case 50...100: return .green
+        case 20..<50: return .yellow
+        default: return .red
+        }
+    }
+
     // MARK: - 消息列表
     private var messageList: some View {
         ScrollViewReader { proxy in
@@ -98,29 +179,52 @@ struct ChatView: View {
 
     // MARK: - 输入栏
     private var inputBar: some View {
-        HStack(spacing: 12) {
-            // 消息输入框
-            TextField("输入消息...", text: $messageText)
-                .textFieldStyle(.roundedBorder)
-                .focused($isInputFocused)
-                .submitLabel(.send)
-                .onSubmit {
-                    sendMessage()
+        VStack(spacing: 0) {
+            // 设备不能发送时的提示
+            if !deviceManager.canSendMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(deviceManager.cannotSendReason ?? "当前设备无法发送消息")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
                 }
-
-            // 发送按钮
-            Button(action: sendMessage) {
-                Image(systemName: "paperplane.fill")
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(messageText.isEmpty ? Color.gray : Color.blue)
-                    .clipShape(Circle())
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.1))
             }
-            .disabled(messageText.isEmpty)
+
+            HStack(spacing: 12) {
+                // 消息输入框
+                TextField(deviceManager.canSendMessage ? "输入消息..." : "仅接收模式", text: $messageText)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isInputFocused)
+                    .submitLabel(.send)
+                    .onSubmit {
+                        sendMessage()
+                    }
+                    .disabled(!deviceManager.canSendMessage)
+
+                // 发送按钮
+                Button(action: sendMessage) {
+                    Image(systemName: "paperplane.fill")
+                        .foregroundColor(.white)
+                        .padding(10)
+                        .background(canSend ? Color.blue : Color.gray)
+                        .clipShape(Circle())
+                }
+                .disabled(!canSend)
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .shadow(color: .black.opacity(0.1), radius: 2, y: -1)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .shadow(color: .black.opacity(0.1), radius: 2, y: -1)
+    }
+
+    // 是否可以发送
+    private var canSend: Bool {
+        return !messageText.isEmpty && deviceManager.canSendMessage
     }
 
     // MARK: - 发送消息

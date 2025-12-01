@@ -75,6 +75,14 @@ class ChatManager: ObservableObject {
             throw ChatError.notAuthenticated
         }
 
+        // 检查设备是否可以发送
+        let deviceManager = DeviceManager.shared
+        if !deviceManager.canSendMessage {
+            let reason = deviceManager.cannotSendReason ?? "当前设备无法发送消息"
+            print("📻 [ChatManager] 设备限制: \(reason)")
+            throw ChatError.deviceCannotSend(reason)
+        }
+
         // 获取当前用户名
         let senderName = AuthManager.shared.currentUser?.email?.components(separatedBy: "@").first ?? AuthManager.shared.currentUser?.username ?? "匿名"
 
@@ -251,6 +259,7 @@ enum ChatError: LocalizedError {
     case notAuthenticated
     case invalidResponse
     case serverError(Int, String)
+    case deviceCannotSend(String)
 
     var errorDescription: String? {
         switch self {
@@ -262,6 +271,8 @@ enum ChatError: LocalizedError {
             return "服务器响应无效"
         case .serverError(let code, let message):
             return "服务器错误 (\(code)): \(message)"
+        case .deviceCannotSend(let reason):
+            return reason
         }
     }
 }

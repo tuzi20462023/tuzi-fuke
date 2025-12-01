@@ -11,6 +11,7 @@
 在GPS策略游戏《地球新主》中，玩家需要能够互相通讯。我们需要实现一个基于Supabase的实时聊天系统，让不同手机上的玩家可以发送和接收消息。
 
 ### 核心需求
+
 1. 用户认证（邮箱登录/注册）
 2. 消息发送
 3. 实时接收（Realtime）
@@ -22,13 +23,14 @@
 
 ### 为什么选择 Supabase Realtime
 
-| 方案 | 优点 | 缺点 |
-|------|------|------|
-| **Firebase** | 成熟、文档丰富 | 国内访问受限、与现有架构不统一 |
-| **WebSocket自建** | 完全可控 | 开发成本高、需要服务器 |
-| **Supabase Realtime** ✅ | 与现有数据库统一、免费额度足够、支持PostgreSQL | Swift SDK有并发限制 |
+| 方案                      | 优点                           | 缺点              |
+| ----------------------- | ---------------------------- | --------------- |
+| **Firebase**            | 成熟、文档丰富                      | 国内访问受限、与现有架构不统一 |
+| **WebSocket自建**         | 完全可控                         | 开发成本高、需要服务器     |
+| **Supabase Realtime** ✅ | 与现有数据库统一、免费额度足够、支持PostgreSQL | Swift SDK有并发限制  |
 
 选择 Supabase Realtime 原因：
+
 1. 项目已使用 Supabase 作为后端，保持技术栈统一
 2. 开箱即用的 PostgreSQL Change Data Capture
 3. 免费套餐足够 MVP 验证
@@ -121,6 +123,7 @@ struct Message: Identifiable, Codable, Sendable {
 ### 3. 创建聊天管理器 (ChatManager.swift)
 
 关键设计决策：
+
 - 使用 `@MainActor` 确保 UI 更新在主线程
 - 使用 REST API 发送消息（避免 Swift 6 并发问题）
 - 使用 Supabase Realtime 接收消息
@@ -249,6 +252,7 @@ nonisolated private static func parseDate(_ dateString: String) -> Date? {
 **原因**: Supabase 会话被缓存，之前的测试账户 session 保存在设备上
 
 **解决**: 修改 `AuthManager.checkCurrentSession()` 检查用户是否有真实邮箱
+
 ```swift
 let hasEmail = supabaseUser.email != nil && !supabaseUser.email!.isEmpty
 let isAnonymous = !hasEmail
@@ -274,6 +278,7 @@ if isAnonymous {
 **原因**: 发送消息时没有传入 sender_name 字段
 
 **解决**: 从用户邮箱提取用户名
+
 ```swift
 let senderName = AuthManager.shared.currentUser?.email?
     .components(separatedBy: "@").first ?? "匿名"
@@ -286,6 +291,7 @@ let senderName = AuthManager.shared.currentUser?.email?
 **原因**: Supabase SDK 某些回调不在 MainActor 上执行
 
 **解决**:
+
 1. 使用 REST API 替代 SDK 方法
 2. 创建独立的 Actor 处理网络请求
 3. 使用 `nonisolated` 标记纯函数

@@ -263,11 +263,13 @@ struct Message: Identifiable, Codable, Sendable {
 #### 错误1: Actor 隔离错误
 
 **现象**:
+
 ```
 Call to main actor-isolated instance method in a synchronous nonisolated context
 ```
 
 **解决提示词**:
+
 ```
 这个方法报 actor 隔离错误，请：
 1. 如果是纯函数（不访问 self 属性），标记为 nonisolated
@@ -278,11 +280,13 @@ Call to main actor-isolated instance method in a synchronous nonisolated context
 #### 错误2: Sendable 警告
 
 **现象**:
+
 ```
 Capture of non-sendable type in @Sendable closure
 ```
 
 **解决提示词**:
+
 ```
 请检查闭包中捕获的变量，确保：
 1. 所有捕获的类型都实现 Sendable
@@ -443,8 +447,8 @@ if !hasEmail {
 }
 // 真实用户，恢复会话
 ```
-```
 
+```
 ---
 
 ## 🚀 任务9: 测试双机通讯 (20分钟)
@@ -472,12 +476,13 @@ if !hasEmail {
    - 确认设备B 实时收到
 
 5. **验证日志**
-   ```
+```
+
    📡 [ChatManager] 发送消息: xxx... 发送者: user1
    ✅ [ChatManager] 消息发送成功
    📨 [ChatManager] 收到新消息: xxx...
-   ```
 
+```
 ### ✅ 成功标准
 
 - [ ] 两台设备使用不同账户登录
@@ -584,3 +589,4 @@ if !hasEmail {
 **恭喜完成 Day 5！** 🎉
 
 你已经掌握了实时通讯系统的开发，这是多人游戏的核心功能之一。
+```
