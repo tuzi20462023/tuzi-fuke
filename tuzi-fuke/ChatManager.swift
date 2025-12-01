@@ -75,7 +75,10 @@ class ChatManager: ObservableObject {
             throw ChatError.notAuthenticated
         }
 
-        print("📡 [ChatManager] 发送消息: \(content.prefix(20))...")
+        // 获取当前用户名
+        let senderName = AuthManager.shared.currentUser?.email?.components(separatedBy: "@").first ?? AuthManager.shared.currentUser?.username ?? "匿名"
+
+        print("📡 [ChatManager] 发送消息: \(content.prefix(20))... 发送者: \(senderName)")
 
         // 使用 REST API 发送（避免 Swift 6 并发问题）
         try await messageUploader.upload(
@@ -83,7 +86,7 @@ class ChatManager: ObservableObject {
                 sender_id: userId.uuidString,
                 content: content,
                 message_type: MessageType.broadcast.rawValue,
-                sender_name: nil
+                sender_name: senderName
             ),
             supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
             anonKey: SupabaseConfig.supabaseAnonKey,
