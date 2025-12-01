@@ -47,10 +47,13 @@ class DeviceManager: ObservableObject {
             let loadedDevices = try await fetchDevicesViaREST(userId: userId)
             devices = loadedDevices
 
-            // 设置默认激活设备（优先选择收音机以外的设备）
-            if activeDevice == nil {
-                activeDevice = devices.first(where: { $0.deviceType != .radio && $0.isActive })
-                    ?? devices.first(where: { $0.isActive })
+            // 设置默认激活设备（优先选择可发送的设备，即非收音机）
+            // 每次加载都重新选择最佳设备
+            let bestDevice = devices.first(where: { $0.deviceType != .radio && $0.isActive })
+                ?? devices.first(where: { $0.isActive })
+
+            if let best = bestDevice {
+                activeDevice = best
             }
 
             print("✅ [DeviceManager] 加载了 \(devices.count) 个设备")
