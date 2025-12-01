@@ -14,12 +14,13 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Tab 1: 地图（主界面）
+            // Tab 1: 地图（主界面，包含圈地和探索）
             SimpleMapView(
                 locationManager: LocationManager.shared,
                 territoryManager: territoryManager,
                 authManager: AuthManager.shared,
-                switchToDebugTab: { selectedTab = 2 }
+                explorationManager: explorationManager,
+                switchToDebugTab: { selectedTab = 1 }
             )
             .tabItem {
                 Image(systemName: "map.fill")
@@ -27,33 +28,21 @@ struct ContentView: View {
             }
             .tag(0)
 
-            // Tab 2: 探索
-            ExplorationView(
-                explorationManager: explorationManager,
-                locationManager: LocationManager.shared,
-                authManager: AuthManager.shared
-            )
-            .tabItem {
-                Image(systemName: "figure.walk")
-                Text("探索")
-            }
-            .tag(1)
-
-            // Tab 3: 调试
+            // Tab 2: 调试
             TestManagersView()
                 .tabItem {
                     Image(systemName: "wrench.fill")
                     Text("调试")
                 }
-                .tag(2)
+                .tag(1)
 
-            // Tab 4: 日志
+            // Tab 3: 日志
             LogViewerView()
                 .tabItem {
                     Image(systemName: "doc.text.fill")
                     Text("日志")
                 }
-                .tag(3)
+                .tag(2)
         }
     }
 }
