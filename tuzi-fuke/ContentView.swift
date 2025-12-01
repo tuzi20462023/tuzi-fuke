@@ -26,21 +26,29 @@ struct ContentView: View {
             }
             .tag(0)
 
-            // Tab 2: 调试
+            // Tab 2: 聊天（通信系统）
+            ChatView()
+                .tabItem {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                    Text("聊天")
+                }
+                .tag(1)
+
+            // Tab 3: 调试
             TestManagersView()
                 .tabItem {
                     Image(systemName: "wrench.fill")
                     Text("调试")
                 }
-                .tag(1)
+                .tag(2)
 
-            // Tab 3: 日志
+            // Tab 4: 日志
             LogViewerView()
                 .tabItem {
                     Image(systemName: "doc.text.fill")
                     Text("日志")
                 }
-                .tag(2)
+                .tag(3)
         }
     }
 }
