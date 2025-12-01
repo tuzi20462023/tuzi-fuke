@@ -36,6 +36,16 @@ struct Message: Codable, Identifiable, Equatable {
     let senderName: String?
     let createdAt: Date
 
+    // MARK: - 初始化（用于本地创建消息）
+    init(id: UUID = UUID(), senderId: UUID, content: String, messageType: MessageType, senderName: String?, createdAt: Date = Date()) {
+        self.id = id
+        self.senderId = senderId
+        self.content = content
+        self.messageType = messageType
+        self.senderName = senderName
+        self.createdAt = createdAt
+    }
+
     // MARK: - CodingKeys（匹配数据库字段）
     enum CodingKeys: String, CodingKey {
         case id

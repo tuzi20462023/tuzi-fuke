@@ -1,0 +1,84 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "C3C4A9B1",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "D9C655FF",
+      "localizations" : [
+        {
+          "description" : "解锁3km双向通讯能力",
+          "displayName" : " 对讲机",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tuzi.device.walkietalkie",
+      "referenceName" : "对讲机",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "632F4185",
+      "localizations" : [
+        {
+          "description" : "解锁30km双向通讯能力",
+          "displayName" : "营地电台",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tuzi.device.campradio",
+      "referenceName" : "营地电台",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "EB1FD676",
+      "localizations" : [
+        {
+          "description" : "解锁100km双向通讯能力",
+          "displayName" : "手机通讯",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.tuzi.device.cellphone",
+      "referenceName" : "手机通讯",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

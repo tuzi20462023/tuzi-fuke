@@ -88,20 +88,37 @@ class ChatManager: ObservableObject {
 
         print("📡 [ChatManager] 发送消息: \(content.prefix(20))... 发送者: \(senderName)")
 
-        // 使用 REST API 发送（避免 Swift 6 并发问题）
-        try await messageUploader.upload(
-            MessageUploadData(
-                sender_id: userId.uuidString,
-                content: content,
-                message_type: MessageType.broadcast.rawValue,
-                sender_name: senderName
-            ),
-            supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
-            anonKey: SupabaseConfig.supabaseAnonKey,
-            accessToken: try? await supabase.auth.session.accessToken
+        // 乐观更新：立即在本地显示消息（使用临时ID）
+        let tempId = UUID()
+        let optimisticMessage = Message(
+            id: tempId,
+            senderId: userId,
+            content: content,
+            messageType: .broadcast,
+            senderName: senderName,
+            createdAt: Date()
         )
+        messages.append(optimisticMessage)
 
-        print("✅ [ChatManager] 消息发送成功")
+        do {
+            // 使用 REST API 发送（避免 Swift 6 并发问题）
+            try await messageUploader.upload(
+                MessageUploadData(
+                    sender_id: userId.uuidString,
+                    content: content,
+                    message_type: MessageType.broadcast.rawValue,
+                    sender_name: senderName
+                ),
+                supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
+                anonKey: SupabaseConfig.supabaseAnonKey,
+                accessToken: try? await supabase.auth.session.accessToken
+            )
+            print("✅ [ChatManager] 消息发送成功")
+        } catch {
+            // 发送失败，移除乐观更新的消息
+            messages.removeAll { $0.id == tempId }
+            throw error
+        }
     }
 
     /// 刷新消息

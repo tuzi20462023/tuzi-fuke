@@ -12,6 +12,7 @@ struct ChatView: View {
     @StateObject private var deviceManager = DeviceManager.shared
     @State private var messageText: String = ""
     @State private var showError: Bool = false
+    @State private var showDeviceStore: Bool = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -52,6 +53,9 @@ struct ChatView: View {
             Button("确定", role: .cancel) {}
         } message: {
             Text(chatManager.errorMessage ?? "未知错误")
+        }
+        .sheet(isPresented: $showDeviceStore) {
+            DeviceStoreView()
         }
     }
 
@@ -120,6 +124,14 @@ struct ChatView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
+
+                // 升级按钮
+                Button {
+                    showDeviceStore = true
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .foregroundColor(.blue)
+                }
             } else {
                 Image(systemName: "antenna.radiowaves.left.and.right.slash")
                     .foregroundColor(.red)
@@ -127,6 +139,19 @@ struct ChatView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
+
+                // 购买设备按钮
+                Button {
+                    showDeviceStore = true
+                } label: {
+                    Text("购买设备")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                }
             }
         }
         .padding(.horizontal)
@@ -232,13 +257,18 @@ struct ChatView: View {
         let content = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
 
-        let textToSend = content
+        // 立即清空输入框（不等待网络）
         messageText = ""
-        isInputFocused = false
 
+        // 异步收起键盘，避免阻塞UI
+        Task { @MainActor in
+            isInputFocused = false
+        }
+
+        // 发送消息
         Task {
             do {
-                try await chatManager.sendMessage(content: textToSend)
+                try await chatManager.sendMessage(content: content)
             } catch {
                 chatManager.errorMessage = error.localizedDescription
                 showError = true
