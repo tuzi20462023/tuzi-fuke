@@ -8,6 +8,7 @@
 ## 背景
 
 在开发 iOS 圈地游戏时，遇到需要**并行开发多个功能**的场景：
+
 - 圈地功能（需要深入优化）
 - 通信功能（独立开发）
 
@@ -17,13 +18,14 @@
 
 ## 为什么选择 Worktree 方案
 
-| 方案 | 优点 | 缺点 |
-|------|------|------|
-| **普通分支** | 简单，一个目录 | 切换分支要 stash，不能并行 |
-| **克隆多份仓库** | 独立 | 浪费空间，同步麻烦 |
-| **Worktree** ✅ | 共享 .git，可并行开发 | 初始设置稍复杂 |
+| 方案             | 优点            | 缺点               |
+| -------------- | ------------- | ---------------- |
+| **普通分支**       | 简单，一个目录       | 切换分支要 stash，不能并行 |
+| **克隆多份仓库**     | 独立            | 浪费空间，同步麻烦        |
+| **Worktree** ✅ | 共享 .git，可并行开发 | 初始设置稍复杂          |
 
 **Worktree 优势**：
+
 1. 两个目录共享同一个 Git 仓库
 2. 可以同时开两个 Claude Code 窗口并行开发
 3. 各分支互不干扰
@@ -44,6 +46,7 @@ git commit -m "完成圈地核心功能"
 ### 2. 创建 GitHub 仓库（使用 GitHub MCP）
 
 MCP 工具可以直接创建仓库：
+
 ```
 mcp__github__create_repository
 - name: tuzi-fuke
@@ -62,6 +65,7 @@ git push -u origin main
 ```
 
 **注意**：如果用 HTTPS 方式报 403 错误，改用 SSH：
+
 ```bash
 git remote set-url origin git@github.com:用户名/仓库名.git
 ```
@@ -132,21 +136,24 @@ git push
 2. 代码审查
 3. 合并 PR
 4. 本地更新 main：
-```bash
-cd ~/Desktop/tuzi-fuke
-git pull
-```
+   
+   ```bash
+   cd ~/Desktop/tuzi-fuke
+   git pull
+   ```
 
 ---
 
 ## 关于项目文档目录
 
 项目中的文档目录：
+
 - `jingyan/` - 开发经验记录（如本文档）
 - `jiaoxue/` - 教学文档
 - `guihua/` - 规划文档
 
 **这些文档跟代码一起提交是好习惯**，方便：
+
 - 以后查阅踩坑经验
 - 团队成员学习
 - 记录决策原因
@@ -177,6 +184,7 @@ git checkout 分支名
 
 **原因**：GitHub Token 权限问题
 **解决**：改用 SSH 方式
+
 ```bash
 git remote set-url origin git@github.com:用户名/仓库名.git
 ```
@@ -185,6 +193,7 @@ git remote set-url origin git@github.com:用户名/仓库名.git
 
 **原因**：分支只在本地，还没推送
 **解决**：推送分支
+
 ```bash
 git push -u origin 分支名
 ```
@@ -194,6 +203,7 @@ git push -u origin 分支名
 ## 总结
 
 Worktree 方案非常适合：
+
 - 需要并行开发多个功能
 - 想同时开多个 IDE/编辑器窗口
 - 不想频繁切换分支

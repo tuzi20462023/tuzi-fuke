@@ -234,14 +234,19 @@ struct SimpleMapView: View {
         let currentPath = locationManager.trackingPath
 
         guard currentPath.count >= 2 else {
+            appLog(.debug, category: "碰撞监控", message: "路径点不足，跳过检测: \(currentPath.count)/2")
             return
         }
+
+        appLog(.debug, category: "碰撞监控", message: "🔍 开始实时碰撞检测，路径点: \(currentPath.count)")
 
         let result = territoryManager.checkPathCollisionComprehensive(
             path: currentPath,
             currentUserId: userId,
             locationManager: locationManager
         )
+
+        appLog(.debug, category: "碰撞监控", message: "检测结果: 碰撞=\(result.hasCollision), 预警=\(result.warningLevel), 距离=\(result.closestDistance ?? -1)m")
 
         // 处理碰撞违规（立即终止圈地）
         if result.hasCollision {

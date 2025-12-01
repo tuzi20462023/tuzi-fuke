@@ -600,20 +600,26 @@ class TerritoryManager: ObservableObject {
             )
         }
 
-        // 2. 检查与所有领地的碰撞
-        let allTerritories = territories + nearbyTerritories
-        // 排除自己的领地（允许穿过自己的领地，但不能和他人的重叠）
-        let otherTerritories = allTerritories.filter { $0.ownerId != currentUserId }
+        // 2. 分离他人领地和自己的领地（参考源项目 checkPathCrossTerritories）
+        appLog(.debug, category: "实时碰撞", message: "📊 领地统计: 我的=\(territories.count), 附近=\(nearbyTerritories.count)")
 
+        // 他人领地：从 nearbyTerritories 中过滤出不是自己的
+        let otherTerritories = nearbyTerritories.filter { $0.ownerId != currentUserId }
+        // 自己的领地：直接使用 territories
+        let ownTerritories = territories
+
+        appLog(.debug, category: "实时碰撞", message: "📊 他人领地: \(otherTerritories.count), 自己领地: \(ownTerritories.count)")
+
+        // 3. 检查与他人领地的碰撞
         for territory in otherTerritories {
             // 检查路径点是否在领地内
             for location in path {
                 if territory.contains(location) {
-                    appLog(.error, category: "实时碰撞", message: "❌ 路径进入领地「\(territory.displayName)」")
+                    appLog(.error, category: "实时碰撞", message: "❌ 路径进入他人领地「\(territory.displayName)」")
                     return RealtimeCollisionResult(
                         hasCollision: true,
                         collisionType: .pointInTerritory,
-                        message: "已进入领地「\(territory.displayName)」！",
+                        message: "已进入他人领地「\(territory.displayName)」！",
                         closestDistance: 0,
                         warningLevel: .violation,
                         conflictTerritoryName: territory.displayName
@@ -623,11 +629,11 @@ class TerritoryManager: ObservableObject {
 
             // 检查路径是否穿越领地边界
             if doesPathCrossTerritory(path: path, territory: territory) {
-                appLog(.error, category: "实时碰撞", message: "❌ 路径穿越领地「\(territory.displayName)」")
+                appLog(.error, category: "实时碰撞", message: "❌ 路径穿越他人领地「\(territory.displayName)」")
                 return RealtimeCollisionResult(
                     hasCollision: true,
                     collisionType: .pathCrossTerritory,
-                    message: "路径穿越领地「\(territory.displayName)」！",
+                    message: "轨迹不能穿越他人的领地！",
                     closestDistance: 0,
                     warningLevel: .violation,
                     conflictTerritoryName: territory.displayName
@@ -635,7 +641,38 @@ class TerritoryManager: ObservableObject {
             }
         }
 
-        // 3. 计算当前位置到最近领地的距离（用于预警）
+        // 4. 检查与自己其他领地的碰撞（参考源项目：crossOwnTerritory）
+        for territory in ownTerritories {
+            // 检查路径点是否在自己的领地内
+            for location in path {
+                if territory.contains(location) {
+                    appLog(.error, category: "实时碰撞", message: "❌ 路径进入自己的领地「\(territory.displayName)」")
+                    return RealtimeCollisionResult(
+                        hasCollision: true,
+                        collisionType: .polygonContainsTerritory, // 用这个表示穿越自己领地
+                        message: "轨迹不能穿越你的其他领地！",
+                        closestDistance: 0,
+                        warningLevel: .violation,
+                        conflictTerritoryName: territory.displayName
+                    )
+                }
+            }
+
+            // 检查路径是否穿越自己领地边界
+            if doesPathCrossTerritory(path: path, territory: territory) {
+                appLog(.error, category: "实时碰撞", message: "❌ 路径穿越自己的领地「\(territory.displayName)」")
+                return RealtimeCollisionResult(
+                    hasCollision: true,
+                    collisionType: .polygonContainsTerritory,
+                    message: "轨迹不能穿越你的其他领地！",
+                    closestDistance: 0,
+                    warningLevel: .violation,
+                    conflictTerritoryName: territory.displayName
+                )
+            }
+        }
+
+        // 5. 计算当前位置到最近他人领地的距离（用于预警）
         var minDistance = Double.infinity
         var closestTerritoryName: String?
 
@@ -649,7 +686,7 @@ class TerritoryManager: ObservableObject {
             }
         }
 
-        // 4. 根据距离确定预警级别
+        // 6. 根据距离确定预警级别
         let warningLevel: WarningLevel
         if minDistance > 100 {
             warningLevel = .safe
@@ -661,7 +698,7 @@ class TerritoryManager: ObservableObject {
             warningLevel = .danger
         }
 
-        // 5. 返回预警结果
+        // 7. 返回预警结果
         let message: String?
         if warningLevel != .safe, let name = closestTerritoryName {
             message = "\(warningLevel.emoji) 距离领地「\(name)」\(Int(minDistance))米"
