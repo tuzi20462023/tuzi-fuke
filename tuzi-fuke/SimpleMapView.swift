@@ -37,7 +37,7 @@ struct SimpleMapView: View {
                 territoryManager: territoryManager,
                 shouldCenterOnUser: $shouldCenterOnUser
             )
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: .bottom) // 只忽略底部，保留顶部导航栏空间
 
             // 控制按钮层
             VStack {
@@ -105,7 +105,7 @@ struct SimpleMapView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 60)
+                .padding(.top, 8) // 导航栏下方，不需要那么大的 padding
 
                 // 碰撞警告卡片（参考源项目 MapWarningsView）
                 if let warning = locationManager.collisionWarning, locationManager.isTracking {

@@ -102,15 +102,27 @@ class AuthManager: ObservableObject {
             let session = try await supabase.auth.session
             let supabaseUser = session.user
 
+            // 判断是否为真正的邮箱登录用户（有 email 就是真实用户）
+            let hasEmail = supabaseUser.email != nil && !supabaseUser.email!.isEmpty
+            let isAnonymous = !hasEmail
+
+            // 如果是匿名用户，不自动登录，需要显示登录界面
+            if isAnonymous {
+                print("📱 [AuthManager] 检测到匿名会话，需要真实登录")
+                self.authState = .idle
+                self.currentUser = nil
+                return
+            }
+
             // 转换为我们的User模型
             let ourUser = User(
                 id: supabaseUser.id,
-                username: "匿名用户\(supabaseUser.id.uuidString.prefix(6).uppercased())",
+                username: supabaseUser.email?.components(separatedBy: "@").first?.capitalized ?? "用户",
                 email: supabaseUser.email,
                 avatarURL: nil,
                 createdAt: Date(),
                 lastActiveAt: Date(),
-                isAnonymous: true, // 2.5.1版本中手动设置
+                isAnonymous: false,
                 gameProfile: GameProfile(
                     level: 1,
                     experience: 0,
@@ -121,7 +133,7 @@ class AuthManager: ObservableObject {
 
             self.currentUser = ourUser
             self.authState = .authenticated(ourUser)
-            print("✅ [AuthManager] 已检测到现有Supabase会话，用户ID: \(supabaseUser.id)")
+            print("✅ [AuthManager] 已检测到现有邮箱会话，用户: \(supabaseUser.email ?? "未知")")
         } catch {
             // 没有活跃会话
             self.authState = .idle
