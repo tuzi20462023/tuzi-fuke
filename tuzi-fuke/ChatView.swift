@@ -257,13 +257,18 @@ struct ChatView: View {
         let content = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
 
-        let textToSend = content
+        // 立即清空输入框（不等待网络）
         messageText = ""
-        isInputFocused = false
 
+        // 异步收起键盘，避免阻塞UI
+        Task { @MainActor in
+            isInputFocused = false
+        }
+
+        // 发送消息
         Task {
             do {
-                try await chatManager.sendMessage(content: textToSend)
+                try await chatManager.sendMessage(content: content)
             } catch {
                 chatManager.errorMessage = error.localizedDescription
                 showError = true
