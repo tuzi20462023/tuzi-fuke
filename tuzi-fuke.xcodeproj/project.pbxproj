@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		824A40D82ED0B43500A4BCA9 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 824A40D72ED0B43500A4BCA9 /* Auth */; };
+		824A40DC2ED0B87A00A4BCA9 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 824A40DB2ED0B87A00A4BCA9 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		822264132ED07CB80053E036 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +70,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				824A40DC2ED0B87A00A4BCA9 /* Supabase in Frameworks */,
+				824A40D82ED0B43500A4BCA9 /* Auth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +132,8 @@
 			);
 			name = "tuzi-fuke";
 			packageProductDependencies = (
+				824A40D72ED0B43500A4BCA9 /* Auth */,
+				824A40DB2ED0B87A00A4BCA9 /* Supabase */,
 			);
 			productName = "tuzi-fuke";
 			productReference = 822264012ED07CB70053E036 /* tuzi-fuke.app */;
@@ -209,7 +218,7 @@
 			mainGroup = 822263F82ED07CB70053E036;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				822264322ED083CE0053E036 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				824A40D62ED0B43500A4BCA9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 822264022ED07CB70053E036 /* Products */;
@@ -600,15 +609,28 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		822264322ED083CE0053E036 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+		824A40D62ED0B43500A4BCA9 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.5.1;
+				kind = exactVersion;
+				version = 2.5.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		824A40D72ED0B43500A4BCA9 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 824A40D62ED0B43500A4BCA9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		824A40DB2ED0B87A00A4BCA9 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 824A40D62ED0B43500A4BCA9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 822263F92ED07CB70053E036 /* Project object */;
 }

@@ -2,27 +2,15 @@
 //  AuthManager.swift
 //  tuzi-fuke (地球新主复刻版)
 //
-//  用户认证管理器 - 支持可变体架构设计
+//  用户认证管理器 - ✅ Supabase版本
 //  Created by AI Assistant on 2025/11/21.
 //
 
 import Foundation
 import SwiftUI
 import Combine
-
-// MARK: - 认证协议 (支持变体扩展)
-
-/// 认证管理器协议 - 支持不同认证方式的变体实现
-protocol AuthManagerProtocol: ObservableObject {
-    var isAuthenticated: Bool { get }
-    var currentUser: User? { get }
-    var authState: AuthState { get }
-
-    func signInAnonymously() async throws
-    func signOut() async
-    func refreshUserSession() async throws
-
-}
+import Supabase
+import UIKit
 
 // MARK: - 认证状态枚举
 
@@ -67,9 +55,9 @@ enum AuthError: Error, LocalizedError {
 
 // MARK: - AuthManager 主实现
 
-/// 认证管理器 - 支持匿名登录和多种认证方式扩展
+/// 认证管理器 - ✅ 使用Supabase认证
 @MainActor
-class AuthManager: AuthManagerProtocol {
+class AuthManager: ObservableObject {
 
     // MARK: - 单例
     static let shared = AuthManager()
@@ -83,55 +71,178 @@ class AuthManager: AuthManagerProtocol {
         authState.isAuthenticated
     }
 
+    /// 当前用户ID
+    var currentUserId: UUID? {
+        return currentUser?.id
+    }
+
+    /// 获取用户显示名称
+    var userDisplayName: String {
+        return currentUser?.username ?? "匿名用户"
+    }
+
     // MARK: - 私有属性
-    private let userDefaults = UserDefaults.standard
-    private let userStorageKey = "tuzi_fuke_current_user"
+    private let supabase: SupabaseClient
 
     // MARK: - 初始化
     private init() {
-        print("🔐 [AuthManager] 初始化认证管理器")
-        loadStoredUser()
+        print("🔐 [AuthManager] 初始化认证管理器（✅ Supabase主模块版本）")
+        self.supabase = SupabaseManager.shared.client
+
+        Task {
+            await checkCurrentSession()
+        }
+    }
+
+    // MARK: - 会话管理
+
+    /// 检查当前会话状态
+    func checkCurrentSession() async {
+        do {
+            let session = try await supabase.auth.session
+            let supabaseUser = session.user
+
+            // 转换为我们的User模型
+            let ourUser = User(
+                id: supabaseUser.id,
+                username: "匿名用户\(supabaseUser.id.uuidString.prefix(6).uppercased())",
+                email: supabaseUser.email,
+                avatarURL: nil,
+                createdAt: Date(),
+                lastActiveAt: Date(),
+                isAnonymous: true, // 2.5.1版本中手动设置
+                gameProfile: GameProfile(
+                    level: 1,
+                    experience: 0,
+                    territoriesCount: 0,
+                    buildingsCount: 0
+                )
+            )
+
+            self.currentUser = ourUser
+            self.authState = .authenticated(ourUser)
+            print("✅ [AuthManager] 已检测到现有Supabase会话，用户ID: \(supabaseUser.id)")
+        } catch {
+            // 没有活跃会话
+            self.authState = .idle
+            self.currentUser = nil
+            print("📱 [AuthManager] 没有现有Supabase会话")
+        }
     }
 
     // MARK: - 公共方法
 
-    /// 匿名登录 (MVP版本主要认证方式)
-    func signInAnonymously() async throws {
-        print("🔐 [AuthManager] 开始匿名登录...")
+    /// 测试账户登录 (使用真实email+password)
+    func signInWithTestAccount() async throws {
+        print("🔐 [AuthManager] 开始 ✅ Supabase真实账户登录...")
 
         // 更新状态为认证中
         authState = .authenticating
 
         do {
-            // 模拟网络请求延迟
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+            // 使用预设的测试账户
+            let testEmail = "test@tuzigame.com"
+            let testPassword = "TuziGame2024!"
 
-            // 生成匿名用户
-            let anonymousUser = createAnonymousUser()
+            print("🔄 [AuthManager] 使用测试账户登录: \(testEmail)")
 
-            // 保存用户数据
-            try saveUserToStorage(anonymousUser)
+            // 真正的email+password登录
+            let session = try await supabase.auth.signIn(
+                email: testEmail,
+                password: testPassword
+            )
+            let supabaseUser = session.user
+
+            // 转换为我们的User模型
+            let ourUser = User(
+                id: supabaseUser.id,
+                username: "测试用户\(supabaseUser.id.uuidString.prefix(6).uppercased())",
+                email: supabaseUser.email,
+                avatarURL: nil,
+                createdAt: Date(),
+                lastActiveAt: Date(),
+                isAnonymous: false, // 这是真实账户
+                gameProfile: GameProfile(
+                    level: 1,
+                    experience: 0,
+                    territoriesCount: 0,
+                    buildingsCount: 0
+                )
+            )
 
             // 更新状态
-            currentUser = anonymousUser
-            authState = .authenticated(anonymousUser)
+            currentUser = ourUser
+            authState = .authenticated(ourUser)
 
-            print("✅ [AuthManager] 匿名登录成功: \(anonymousUser.username)")
+            print("🎉 [AuthManager] ✅ Supabase真实账户登录成功！")
+            print("🆔 [AuthManager] 真实用户ID: \(supabaseUser.id)")
+            print("📧 [AuthManager] 登录邮箱: \(testEmail)")
+            print("🌐 [AuthManager] 连接到项目: https://urslgwtgnjcxlzzcwhfw.supabase.co")
+            print("✅ [AuthManager] 真实账户状态: ✅ (email+password登录)")
+            print("🎯 [AuthManager] Day2阶段1完成 - 真实Supabase认证已启用！")
 
         } catch {
             let authError = AuthError.anonymousSignInFailed
             authState = .failed(authError)
-            print("❌ [AuthManager] 匿名登录失败: \(error.localizedDescription)")
+            print("❌ [AuthManager] Supabase账户登录失败: \(error.localizedDescription)")
+            throw authError
+        }
+    }
+
+    /// 自定义邮箱密码登录
+    func signIn(email: String, password: String) async throws {
+        print("🔐 [AuthManager] 开始邮箱密码登录: \(email)")
+
+        authState = .authenticating
+
+        do {
+            let session = try await supabase.auth.signIn(
+                email: email,
+                password: password
+            )
+            let supabaseUser = session.user
+
+            let ourUser = User(
+                id: supabaseUser.id,
+                username: supabaseUser.email?.components(separatedBy: "@").first?.capitalized ?? "用户",
+                email: supabaseUser.email,
+                avatarURL: nil,
+                createdAt: Date(),
+                lastActiveAt: Date(),
+                isAnonymous: false,
+                gameProfile: GameProfile(
+                    level: 1,
+                    experience: 0,
+                    territoriesCount: 0,
+                    buildingsCount: 0
+                )
+            )
+
+            currentUser = ourUser
+            authState = .authenticated(ourUser)
+
+            print("🎉 [AuthManager] ✅ 自定义账户登录成功！")
+            print("🆔 [AuthManager] 用户ID: \(supabaseUser.id)")
+            print("📧 [AuthManager] 邮箱: \(email)")
+
+        } catch {
+            let authError = AuthError.anonymousSignInFailed
+            authState = .failed(authError)
+            print("❌ [AuthManager] 邮箱密码登录失败: \(error.localizedDescription)")
             throw authError
         }
     }
 
     /// 登出
     func signOut() async {
-        print("🔐 [AuthManager] 用户登出")
+        print("🔐 [AuthManager] Supabase用户登出")
 
-        // 清除存储的用户数据
-        userDefaults.removeObject(forKey: userStorageKey)
+        do {
+            try await supabase.auth.signOut()
+            print("✅ [AuthManager] Supabase登出成功")
+        } catch {
+            print("❌ [AuthManager] Supabase登出失败: \(error.localizedDescription)")
+        }
 
         // 重置状态
         currentUser = nil
@@ -146,108 +257,15 @@ class AuthManager: AuthManagerProtocol {
             throw AuthError.sessionExpired
         }
 
-        print("🔐 [AuthManager] 刷新用户会话: \(user.username)")
-
-        // 这里可以添加会话验证逻辑
-        // 对于匿名用户，暂时直接成功
-        print("✅ [AuthManager] 会话刷新成功")
-    }
-
-    // MARK: - 预留扩展方法 (支持变体)
-
-    /// 苹果登录 (预留接口)
-    func signInWithApple() async throws {
-        print("🔐 [AuthManager] Apple登录功能待实现")
-        throw AuthError.unknownError("Apple登录功能尚未实现")
-    }
-
-    /// Google登录 (预留接口)
-    func signInWithGoogle() async throws {
-        print("🔐 [AuthManager] Google登录功能待实现")
-        throw AuthError.unknownError("Google登录功能尚未实现")
-    }
-
-    // MARK: - 私有方法
-
-    /// 创建匿名用户
-    private func createAnonymousUser() -> User {
-        let userId = UUID()
-        let username = "玩家\(String(userId.uuidString.prefix(6)).uppercased())"
-        let createdAt = Date()
-
-        return User(
-            id: userId,
-            username: username,
-            email: nil,
-            avatarURL: nil,
-            createdAt: createdAt,
-            lastActiveAt: createdAt,
-            isAnonymous: true,
-            gameProfile: GameProfile(
-                level: 1,
-                experience: 0,
-                territoriesCount: 0,
-                buildingsCount: 0
-            )
-        )
-    }
-
-    /// 从本地存储加载用户
-    private func loadStoredUser() {
-        guard let userData = userDefaults.data(forKey: userStorageKey) else {
-            print("📱 [AuthManager] 没有找到存储的用户数据")
-            return
-        }
+        print("🔐 [AuthManager] 刷新Supabase用户会话: \(user.username)")
 
         do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let user = try decoder.decode(User.self, from: userData)
-
-            currentUser = user
-            authState = .authenticated(user)
-            print("✅ [AuthManager] 已加载存储用户: \(user.username)")
-
+            _ = try await supabase.auth.session
+            print("✅ [AuthManager] Supabase会话刷新成功")
         } catch {
-            print("❌ [AuthManager] 用户数据解码失败: \(error)")
-            userDefaults.removeObject(forKey: userStorageKey)
-            authState = .failed(.userDataCorrupted)
+            print("❌ [AuthManager] Supabase会话刷新失败: \(error)")
+            throw AuthError.sessionExpired
         }
-    }
-
-    /// 保存用户到本地存储
-    private func saveUserToStorage(_ user: User) throws {
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let userData = try encoder.encode(user)
-            userDefaults.set(userData, forKey: userStorageKey)
-            print("✅ [AuthManager] 用户数据已保存到本地")
-
-        } catch {
-            print("❌ [AuthManager] 用户数据保存失败: \(error)")
-            throw AuthError.userDataCorrupted
-        }
-    }
-}
-
-// MARK: - 便利方法扩展
-
-extension AuthManager {
-
-    /// 获取当前用户ID
-    var currentUserId: UUID? {
-        return currentUser?.id
-    }
-
-    /// 检查是否为匿名用户
-    var isAnonymousUser: Bool {
-        return currentUser?.isAnonymous == true
-    }
-
-    /// 获取用户显示名称
-    var userDisplayName: String {
-        return currentUser?.username ?? "未登录"
     }
 
     /// 打印认证状态调试信息
@@ -258,7 +276,13 @@ extension AuthManager {
         print("认证状态: \(authState)")
         print("用户ID: \(currentUserId?.uuidString ?? "无")")
         print("用户名: \(userDisplayName)")
-        print("匿名用户: \(isAnonymousUser)")
+        print("账户类型: \(currentUser?.isAnonymous == true ? "匿名" : "真实")")
+        if let email = currentUser?.email {
+            print("用户邮箱: \(email)")
+        }
+        print("版本: ✅ Supabase真实版本已启用！")
+        print("项目: https://urslgwtgnjcxlzzcwhfw.supabase.co")
+        print("状态: 🎯 Day2阶段1完成 - 准备进入阶段2")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     }
 }

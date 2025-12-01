@@ -7,7 +7,7 @@
 //
 
 import Foundation
-// 🚨 临时注释: import Supabase (等待SPM依赖添加完成)
+import Supabase
 
 /// Supabase 配置管理 (临时版本 - 不依赖Supabase SDK)
 struct SupabaseConfig {
@@ -15,21 +15,15 @@ struct SupabaseConfig {
     // MARK: - Supabase 连接配置
 
     /// Supabase 项目URL
-    /// 🔧 TODO: 替换为你的实际Supabase项目URL
-    static let supabaseURL = URL(string: "https://your-project.supabase.co")!
+    static let supabaseURL = URL(string: "https://urslgwtgnjcxlzzcwhfw.supabase.co")!
 
     /// Supabase 匿名密钥 (anon key)
-    /// 🔧 TODO: 替换为你的实际anon key
-    static let supabaseAnonKey = "your-anon-key-here"
-
-    // MARK: - 临时客户端占位符
-    // 🚨 注意: 添加Supabase依赖后需要启用真实的SupabaseClient
+    static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyc2xnd3RnbmpjeGx6emN3aGZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3MjIxMTEsImV4cCI6MjA3OTI5ODExMX0.PO7zwp68QYP4NCg1L1IasRA8GR9b48ZblzV1lODx9Bg"
 
     /// 配置状态
     static var isConfigured: Bool {
         return validateConfig()
     }
-
     // MARK: - 配置验证
 
     /// 验证配置是否有效
@@ -61,8 +55,34 @@ struct SupabaseConfig {
         print("URL: \(supabaseURL.absoluteString)")
         print("Key: \(String(supabaseAnonKey.prefix(20)))...")
         print("状态: \(validateConfig() ? "✅ 有效" : "❌ 需要配置")")
-        print("SDK状态: ❌ 等待添加Supabase依赖")
+        print("SDK状态: ✅ Supabase SDK v2.5.1已集成")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    }
+}
+
+/// Supabase客户端单例管理器
+class SupabaseManager {
+    static let shared = SupabaseManager()
+
+    let client: SupabaseClient
+
+    private init() {
+        client = SupabaseClient(
+            supabaseURL: SupabaseConfig.supabaseURL,
+            supabaseKey: SupabaseConfig.supabaseAnonKey
+        )
+        print("✅ [SupabaseManager] Supabase客户端初始化完成")
+        print("🌐 [SupabaseManager] 连接到: \(SupabaseConfig.supabaseURL.absoluteString)")
+    }
+
+    /// 获取当前用户ID
+    func getCurrentUserId() async -> UUID? {
+        do {
+            let session = try await client.auth.session
+            return session.user.id
+        } catch {
+            return nil
+        }
     }
 }
 

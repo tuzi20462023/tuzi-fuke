@@ -1,0 +1,696 @@
+import SwiftUI
+import MapKit
+import UIKit  // 用于触觉反馈
+
+/// 简易地图视图 - SwiftUI 层封装
+struct SimpleMapView: View {
+
+    // MARK: - 环境对象
+    @ObservedObject var locationManager: LocationManager
+    @ObservedObject var territoryManager: TerritoryManager
+    @ObservedObject var authManager: AuthManager
+
+    // MARK: - 回调
+    var switchToDebugTab: (() -> Void)?
+
+    // MARK: - 状态
+    @State private var shouldCenterOnUser = false
+    @State private var showLoginAlert = false
+    @State private var showCollisionAlert = false
+    @State private var collisionAlertMessage = ""
+
+    // MARK: - 实时碰撞检测定时器
+    @State private var collisionCheckTimer: Timer?
+    private let collisionCheckInterval: TimeInterval = 5.0  // 每5秒检查一次
+
+    // MARK: - 触觉反馈生成器
+    private let notificationFeedback = UINotificationFeedbackGenerator()
+    private let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+
+    // MARK: - Body
+
+    var body: some View {
+        ZStack {
+            // 地图
+            MapViewRepresentable(
+                locationManager: locationManager,
+                territoryManager: territoryManager,
+                shouldCenterOnUser: $shouldCenterOnUser
+            )
+            .ignoresSafeArea()
+
+            // 控制按钮层
+            VStack {
+                Spacer()
+
+                HStack {
+                    // 行走圈地按钮（左下角）
+                    walkingClaimButton
+                        .padding(.leading, 16)
+                        .padding(.bottom, 100)
+
+                    Spacer()
+
+                    // 定位按钮（右下角）
+                    Button(action: {
+                        shouldCenterOnUser = true
+                    }) {
+                        Image(systemName: "location.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .frame(width: 50, height: 50)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                            .shadow(radius: 4)
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 100)
+                }
+            }
+
+            // 状态信息层
+            VStack {
+                // 顶部状态栏
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let location = locationManager.currentLocation {
+                            Text("纬度: \(location.coordinate.latitude, specifier: "%.6f")")
+                                .font(.caption)
+                            Text("经度: \(location.coordinate.longitude, specifier: "%.6f")")
+                                .font(.caption)
+                            Text("精度: ±\(location.horizontalAccuracy, specifier: "%.1f")m")
+                                .font(.caption)
+                        } else {
+                            Text("等待定位...")
+                                .font(.caption)
+                        }
+
+                        // 领地数量
+                        Text("我的领地: \(territoryManager.territories.count) 块")
+                            .font(.caption)
+                            .foregroundColor(.green)
+
+                        // 附近领地
+                        if !territoryManager.nearbyTerritories.isEmpty {
+                            Text("附近领地: \(territoryManager.nearbyTerritories.count) 块")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.6))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 60)
+
+                // 碰撞警告卡片（参考源项目 MapWarningsView）
+                if let warning = locationManager.collisionWarning, locationManager.isTracking {
+                    collisionWarningCard(message: warning)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.3), value: locationManager.collisionWarning)
+                }
+
+                Spacer()
+
+                // 提示信息
+                if !locationManager.isTracking && territoryManager.territories.isEmpty {
+                    Text("点击左下角按钮开始行走圈地")
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(8)
+                        .padding(.bottom, 160)
+                }
+
+                // 行走圈地状态信息
+                if locationManager.isTracking {
+                    trackingStatusOverlay
+                        .padding(.bottom, 160)
+                }
+            }
+
+            // 圈地确认弹窗（长按圈地）
+            if territoryManager.showClaimConfirmation {
+                claimConfirmationOverlay
+            }
+
+            // 行走圈地确认弹窗
+            if locationManager.isPathClosed && locationManager.isTracking {
+                walkingClaimConfirmationOverlay
+            }
+
+            // 圈地状态提示
+            if case .success = territoryManager.claimingState {
+                successOverlay
+            }
+        }
+        .alert("需要登录", isPresented: $showLoginAlert) {
+            Button("去登录") {
+                switchToDebugTab?()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("圈地功能需要先登录账号，是否前往登录？")
+        }
+        .alert("碰撞违规", isPresented: $showCollisionAlert) {
+            Button("确定", role: .cancel) {}
+        } message: {
+            Text(collisionAlertMessage)
+        }
+        .onAppear {
+            // 请求定位权限并开始更新
+            locationManager.requestLocationPermission()
+            Task {
+                try? await locationManager.startLocationUpdates()
+
+                // 首次定位后居中并查询附近领地
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    shouldCenterOnUser = true
+
+                    // 查询领地数据
+                    Task {
+                        if let location = locationManager.currentLocation {
+                            await territoryManager.refreshTerritories(at: location)
+                        }
+                    }
+                }
+            }
+        }
+        .onChange(of: locationManager.isTracking) { _, isTracking in
+            if isTracking {
+                startCollisionMonitoring()
+            } else {
+                stopCollisionMonitoring()
+            }
+        }
+        .onDisappear {
+            stopCollisionMonitoring()
+        }
+    }
+
+    // MARK: - 实时碰撞监控（参考源项目）
+
+    /// 开始实时碰撞监控（每5秒检查一次）
+    private func startCollisionMonitoring() {
+        guard let userId = authManager.currentUser?.id else {
+            appLog(.warning, category: "碰撞监控", message: "用户未登录，跳过碰撞监控")
+            return
+        }
+
+        appLog(.info, category: "碰撞监控", message: "🚀 启动实时碰撞检测，间隔: \(collisionCheckInterval)秒")
+
+        // 停止之前的定时器
+        collisionCheckTimer?.invalidate()
+
+        // 立即检查一次
+        checkPathCollisionComprehensive(userId: userId)
+
+        // 启动定时器
+        collisionCheckTimer = Timer.scheduledTimer(withTimeInterval: collisionCheckInterval, repeats: true) { _ in
+            Task { @MainActor in
+                self.checkPathCollisionComprehensive(userId: userId)
+            }
+        }
+    }
+
+    /// 停止碰撞监控
+    private func stopCollisionMonitoring() {
+        collisionCheckTimer?.invalidate()
+        collisionCheckTimer = nil
+        locationManager.updateCollisionWarning(nil, level: .safe)
+        appLog(.info, category: "碰撞监控", message: "🛑 停止实时碰撞检测")
+    }
+
+    /// 综合碰撞检测
+    private func checkPathCollisionComprehensive(userId: UUID) {
+        let currentPath = locationManager.trackingPath
+
+        guard currentPath.count >= 2 else {
+            return
+        }
+
+        let result = territoryManager.checkPathCollisionComprehensive(
+            path: currentPath,
+            currentUserId: userId,
+            locationManager: locationManager
+        )
+
+        // 处理碰撞违规（立即终止圈地）
+        if result.hasCollision {
+            appLog(.error, category: "碰撞监控", message: "❌ 检测到碰撞违规，立即终止圈地")
+
+            // 更新警告状态
+            locationManager.updateCollisionWarning(result.message, level: .violation)
+
+            // 触觉反馈
+            triggerHapticFeedback(level: .violation)
+
+            // 停止圈地
+            locationManager.stopPathTracking()
+            locationManager.clearPath()
+
+            // 显示警告弹窗
+            if let message = result.message {
+                collisionAlertMessage = message
+                showCollisionAlert = true
+            }
+            return
+        }
+
+        // 处理距离预警（不终止，仅提醒）
+        locationManager.updateCollisionWarning(result.message, level: result.warningLevel)
+
+        // 根据预警级别触发触觉反馈
+        if result.warningLevel != .safe {
+            triggerHapticFeedback(level: result.warningLevel)
+        }
+    }
+
+    /// 触觉反馈（参考源项目）
+    private func triggerHapticFeedback(level: WarningLevel) {
+        switch level {
+        case .caution:
+            // 注意：轻微震动1次
+            notificationFeedback.notificationOccurred(.warning)
+
+        case .warning:
+            // 警告：中等震动2次
+            impactFeedback.prepare()
+            impactFeedback.impactOccurred()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.impactFeedback.impactOccurred()
+            }
+
+        case .danger:
+            // 危险：强烈震动3次
+            impactFeedback.prepare()
+            impactFeedback.impactOccurred()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                self.impactFeedback.impactOccurred()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.impactFeedback.impactOccurred()
+            }
+
+        case .violation:
+            // 违规：错误震动
+            notificationFeedback.notificationOccurred(.error)
+
+        case .safe:
+            // 安全：无震动
+            break
+        }
+    }
+
+    // MARK: - 碰撞警告卡片
+
+    private func collisionWarningCard(message: String) -> some View {
+        let warningLevel = locationManager.currentWarningLevel
+        let color: Color = {
+            switch warningLevel {
+            case .safe: return .green
+            case .caution: return .yellow
+            case .warning: return .orange
+            case .danger, .violation: return .red
+            }
+        }()
+
+        return HStack {
+            Image(systemName: warningLevel == .violation ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
+                .foregroundColor(color)
+                .font(.title2)
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(color)
+                .fontWeight(.semibold)
+        }
+        .padding()
+        .background(color.opacity(0.15))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(color.opacity(0.3), lineWidth: 1)
+        )
+        .shadow(color: color.opacity(0.2), radius: 5, x: 0, y: 2)
+    }
+
+    // MARK: - 圈地确认弹窗
+
+    private var claimConfirmationOverlay: some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 16) {
+                Text("确认圈地")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                if let coord = territoryManager.selectedLocation {
+                    VStack(spacing: 4) {
+                        Text("位置: \(coord.latitude, specifier: "%.6f"), \(coord.longitude, specifier: "%.6f")")
+                            .font(.caption)
+                        Text("半径: \(Int(territoryManager.defaultRadius))米")
+                            .font(.caption)
+                        Text("面积: \(Int(Double.pi * territoryManager.defaultRadius * territoryManager.defaultRadius))m²")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white.opacity(0.8))
+                }
+
+                HStack(spacing: 20) {
+                    Button("取消") {
+                        territoryManager.cancelClaiming()
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color.gray)
+                    .cornerRadius(8)
+
+                    Button("确认圈地") {
+                        if territoryManager.isLoggedIn {
+                            Task {
+                                await territoryManager.confirmClaim()
+                            }
+                        } else {
+                            territoryManager.cancelClaiming()
+                            showLoginAlert = true
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(territoryManager.isLoggedIn ? Color.green : Color.orange)
+                    .cornerRadius(8)
+                }
+            }
+            .padding(20)
+            .background(Color.black.opacity(0.8))
+            .cornerRadius(16)
+            .padding(.horizontal, 40)
+            .padding(.bottom, 120)
+        }
+    }
+
+    // MARK: - 成功提示
+
+    private var successOverlay: some View {
+        VStack {
+            Spacer()
+
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("圈地成功！")
+                    .foregroundColor(.white)
+            }
+            .padding()
+            .background(Color.black.opacity(0.8))
+            .cornerRadius(12)
+            .padding(.bottom, 200)
+        }
+    }
+
+    // MARK: - 行走圈地按钮
+
+    private var walkingClaimButton: some View {
+        Button(action: {
+            if locationManager.isTracking {
+                // 停止追踪
+                locationManager.stopPathTracking()
+            } else {
+                // 检查登录状态
+                if authManager.currentUser == nil {
+                    showLoginAlert = true
+                } else {
+                    // 开始追踪
+                    locationManager.startPathTracking()
+                }
+            }
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: locationManager.isTracking ? "stop.fill" : "figure.walk")
+                    .font(.title3)
+                Text(locationManager.isTracking ? "停止" : "圈地")
+                    .font(.headline)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(locationManager.isTracking ? Color.red : Color.orange)
+            .cornerRadius(25)
+            .shadow(radius: 4)
+        }
+    }
+
+    // MARK: - 行走追踪状态信息
+
+    private var trackingStatusOverlay: some View {
+        let pathPoints = locationManager.trackingPath.count
+        let distance = locationManager.calculateTotalPathDistance()
+        let distanceToStart = locationManager.distanceToStart()
+        let area = locationManager.calculatePolygonArea()
+
+        // 闭环条件检测（与 LocationManager 保持一致）
+        let minPoints = 10
+        let minDistance = 50.0
+        let minArea = 100.0
+        let maxClosureDistance = 30.0
+
+        let pointsOK = pathPoints >= minPoints
+        let distanceOK = distance >= minDistance
+        let areaOK = area >= minArea
+        let closureOK = pathPoints > 0 && distanceToStart <= maxClosureDistance
+
+        return VStack(spacing: 8) {
+            // 标题
+            HStack {
+                Image(systemName: "figure.walk")
+                    .foregroundColor(.orange)
+                Text("正在圈地...")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                // 实时面积
+                Text("\(Int(area))m²")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(areaOK ? Color.green : Color.gray)
+                    .cornerRadius(4)
+                    .foregroundColor(.white)
+            }
+
+            Divider().background(Color.white.opacity(0.3))
+
+            // 核心数据
+            HStack(spacing: 16) {
+                VStack {
+                    Text("\(pathPoints)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(pointsOK ? .green : .orange)
+                    Text("点数")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                VStack {
+                    Text("\(Int(distance))m")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(distanceOK ? .green : .orange)
+                    Text("已走")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                VStack {
+                    Text("\(Int(distanceToStart))m")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(closureOK ? .green : .orange)
+                    Text("距起点")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+
+            Divider().background(Color.white.opacity(0.3))
+
+            // 闭环条件检查列表（已移除形状检查，原项目没有此限制）
+            VStack(alignment: .leading, spacing: 2) {
+                conditionRow(label: "点数", current: "\(pathPoints)", required: "≥\(minPoints)", isOK: pointsOK)
+                conditionRow(label: "距离", current: "\(Int(distance))m", required: "≥\(Int(minDistance))m", isOK: distanceOK)
+                conditionRow(label: "面积", current: "\(Int(area))m²", required: "≥\(Int(minArea))m²", isOK: areaOK)
+                conditionRow(label: "闭合", current: "\(Int(distanceToStart))m", required: "≤\(Int(maxClosureDistance))m", isOK: closureOK)
+            }
+
+            // 闭环成功提示
+            if locationManager.isPathClosed {
+                HStack {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.green)
+                    Text("路径已闭合！可以确认圈地")
+                        .foregroundColor(.green)
+                        .fontWeight(.bold)
+                }
+                .font(.caption)
+                .padding(.top, 4)
+            } else if locationManager.hasSelfIntersection {
+                HStack {
+                    Image(systemName: "xmark.octagon.fill")
+                        .foregroundColor(.red)
+                    Text("路径存在自相交，请调整路线")
+                        .foregroundColor(.red)
+                        .fontWeight(.bold)
+                }
+                .font(.caption)
+                .padding(.top, 4)
+            }
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.85))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
+    }
+
+    // 条件行组件
+    private func conditionRow(label: String, current: String, required: String, isOK: Bool) -> some View {
+        HStack {
+            Image(systemName: isOK ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isOK ? .green : .gray)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.8))
+                .frame(width: 30, alignment: .leading)
+            Text(current)
+                .font(.caption2)
+                .foregroundColor(isOK ? .green : .white)
+                .frame(width: 45, alignment: .trailing)
+            Text("/")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.5))
+            Text(required)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.6))
+        }
+    }
+
+    // MARK: - 行走圈地确认弹窗
+
+    private var walkingClaimConfirmationOverlay: some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 16) {
+                HStack {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.green)
+                        .font(.title2)
+                    Text("路径已闭合！")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+
+                VStack(spacing: 4) {
+                    Text("面积: \(Int(locationManager.enclosedArea))m²")
+                        .font(.subheadline)
+                    Text("顶点数: \(locationManager.trackingPath.count)")
+                        .font(.caption)
+                    Text("周长: \(Int(locationManager.calculateTotalPathDistance()))米")
+                        .font(.caption)
+                }
+                .foregroundColor(.white.opacity(0.8))
+
+                HStack(spacing: 20) {
+                    Button("取消") {
+                    locationManager.clearPath()
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color.gray)
+                .cornerRadius(8)
+
+                    Button("确认圈地") {
+                        Task {
+                            await confirmWalkingClaim()
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(locationManager.hasSelfIntersection ? Color.gray : Color.green)
+                    .cornerRadius(8)
+                    .disabled(locationManager.hasSelfIntersection)
+                }
+            }
+            .padding(20)
+            .background(Color.black.opacity(0.85))
+            .cornerRadius(16)
+            .padding(.horizontal, 40)
+            .padding(.bottom, 120)
+        }
+    }
+
+    // MARK: - 确认行走圈地
+
+    private func confirmWalkingClaim() async {
+        guard locationManager.isPathClosed else {
+            appLog(.warning, category: "确认圈地", message: "路径未闭环，取消")
+            return
+        }
+        guard let user = authManager.currentUser else {
+            appLog(.warning, category: "确认圈地", message: "用户未登录")
+            showLoginAlert = true
+            return
+        }
+
+        // 获取路径位置（CLLocation 数组，包含时间戳等完整信息）
+        let pathLocations = locationManager.trackingPath
+        let area = locationManager.enclosedArea
+        let startTime = locationManager.trackingStartTime
+
+        appLog(.info, category: "确认圈地", message: "🏴 用户确认圈地")
+        appLog(.info, category: "确认圈地", message: "用户: \(user.username) (\(user.id))")
+        appLog(.info, category: "确认圈地", message: "顶点数: \(pathLocations.count), 面积: \(Int(area))m²")
+
+        // 调用 TerritoryManager 进行圈地（使用完整的 CLLocation 数据）
+        await territoryManager.confirmWalkingClaim(
+            pathLocations: pathLocations,
+            area: area,
+            startTime: startTime
+        )
+
+        // 清除路径
+        locationManager.clearPath()
+
+        // 刷新领地数据
+        if let location = locationManager.currentLocation {
+            await territoryManager.refreshTerritories(at: location)
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    SimpleMapView(
+        locationManager: LocationManager.shared,
+        territoryManager: TerritoryManager.shared,
+        authManager: AuthManager.shared,
+        switchToDebugTab: {}
+    )
+}

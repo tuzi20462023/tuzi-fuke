@@ -108,11 +108,44 @@
 - ✅ 三大核心 Manager（`AuthManager`、`LocationManager`、`DataManager`）和基础模型 (`User`, `Territory`, `Building`) 落地，并通过测试视图在真机验证运行。
 - ✅ Day1 教学指南和提示词整理完毕，可复用在课堂演示。
 
-### 下一步规划（Stage 1 / Day2）
+### Day1 下午协作要点
 
-1. **接入 Supabase SDK**：使用 SPM 添加 `supabase-swift`，替换临时 `SupabaseConfig`，初始化 `SupabaseManager.shared`。
-2. **打通匿名会话**：在真机上验证 `AuthManager` 使用 Supabase 完成匿名登录/登出，确认网络与密钥配置无误。
-3. **定位数据入库**：扩展 `LocationManager` 做定时采集，通过 `DataRepository` 把坐标写入 Supabase `positions` 表，新增 `LocationView` 展示上传状态。
-4. **筹备地图模块**：梳理 `TerritoryManager` 依赖，预留 MapKit 接口（位置订阅、历史点缓存），为 Day3 的圈地功能做准备。
+- 错误处理流程固化：任何编译错误直接复制给 AI，按“复制→修复→验证”循环推进。
+- 边界管理：已经将变体需求限定为“主题换皮”，删除过度设计的变体框架，聚焦核心圈地/建筑系统。
+- 教学经验沉淀：`jiaoxue/DAY1_*` 文档形成标准案例，展示如何与 AI 配合完成核心 Manager 与数据模型。
 
-完成以上四项即可封闭 Stage 1（Supabase 真连接 + 定位上传闭环），随后按原计划推进地图圈地、建筑系统与 UI 串联，再进入主题变体阶段。
+### 11.21 晚复盘（与老板沟通要点）
+
+- **模块化路线**：项目按 15 个系统拆分，圈地/地图是最核心的里程碑，建筑→资源→交易→通讯逐层叠加，动画/通讯等可作为加分项。
+- **认证课程**：Apple/Google/Supabase 邮箱三种登录各用一天教学，难点在外部配置（Xcode、Google Console、Supabase）流程；需准备 7 步顺序和文档。
+  - **认证课程**：Apple/Google/Supabase 邮箱三种登录各用一天教学，难点在外部配置（Xcode、Google Console、Supabase）流程；需准备 7 步顺序和文档。先完成核心闭环（地图→圈地→建造）后再安排真实 Apple/Google 登录课程，确保玩法先跑通、再单独讲第三方登录配置。
+- **地图＋定位＋多人是核心价值**：所有变体围绕 MapKit + GPS + 多人定位扩展（建造、社交、商业、宝可梦式玩法等），强调“先跑通核心，再做变体”的策略。
+- **教学策略**：每个模块完成即设里程碑，方便学生获得成就感；课程资源以模块化代码提供，课堂引导 AI 将大项目拆成小主题。
+  
+  
+
+### 2025-11-22 12:50 模块优先级梳理
+
+- **基础支撑层**（已完成）：认证（`AuthManager`）、SupabaseConfig、数据仓储（`DataRepository`）、定位基础（`LocationManager`）。Day1/Day2 已实现真实登录+GPS上传。
+- **核心闭环层**（当前 Stage）：
+  1. **地图展示**：复刻 `SimpleMapView` / `MapViewRepresentable`，渲染实时位置与历史轨迹。
+  2. **圈地系统**：实现 `TerritoryManager`、领地模型、地图 Overlay；对接 Supabase `territories` 表与 `validate-territory` Edge Function。
+  3. **建造系统**：在圈地基础上接入 `BuildingManager`、建筑模型与放置视图，完成“圈地后建造”体验。
+- **资源/经济层**：`ItemManager`、`ResourcesTabView`，提供建筑材料；随后 `TradeManager` 支持交易市场。
+- **社交/通讯层**：`CommunicationManager`、`ChannelManager`、`DynamicMessageManager`、`RadioManager`，可按课程安排逐步引入。
+- **扩展层**：POI/探索（`POIManager`、`ExplorationManager`）、成就/排行榜、StoreKit/IAP、动画与音效增强。
+
+当前作为 Stage 1→Stage 2 的过渡，需要优先完成“核心闭环层”的前三项：地图展示 → 圈地 → 建造。资源、交易、通讯等模块待核心闭环稳定后再分阶段上线，以保持与老板沟通的优先级一致。
+
+老板希望把 Apple / Google / Supabase 邮箱登录拆成独立课程模块——它们属于“基础支撑层”但可以在核心闭环跑稳后讲。当前我们已经完成邮箱密
+  码登录（Day2），下一阶段先把“地图→圈地→建造”闭环做完；等 M2/M3 里程碑稳定后，再按照老板说的安排专门的认证课程：用 1 天讲 Apple Sign
+  In、1 天讲 Google Sign In、1 天讲 Supabase 邮箱验证（包含控制台配置、URL Scheme、Entitlements 等 7 步流程）。因此真实的 Google/
+  Apple 登录就在核心闭环完成后、进入“认证课程”阶段时做，这样学生既能先看到玩法，也能在单独课程里专注处理复杂的第三方配置。
+
+### 下一步规划（Stage 2 / Day3）
+
+1. **地图展示**：在 `tuzi-fuke` 中复刻 `SimpleMapView`/`MapViewRepresentable`，渲染实时位置与历史轨迹（真机验证）并与现有 `LocationManager` 数据打通。
+2. **圈地系统**：实现 `TerritoryManager`、领地模型、圈地 UI；写入 Supabase `territories` 表，预留 `validate-territory` Edge Function 调用；地图上渲染圈地 Overlay。
+3. **建造准备**：梳理 `BuildingManager` 所需依赖，设计圈地完成后的入口（占领列表、放置按钮），为 Day4 的建筑系统做代码准备。
+
+完成以上三项即可达成 Stage 2（地图圈地闭环），随后进入建造系统与资源/交易扩展，再在核心稳定后安排 Apple/Google 登录课程及主题变体。

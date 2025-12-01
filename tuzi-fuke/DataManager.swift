@@ -281,9 +281,11 @@ class DataManager: DataManagerProtocol {
     /// 设置基础仓储
     private func setupRepositories() {
         // 这里可以注册默认的仓储实例
-        // 具体的仓储实现会在创建数据模型时添加
-
         print("💾 [DataManager] 设置基础仓储...")
+
+        // 注册位置数据仓储
+        let positionRepository = PositionRepository()
+        registerRepository(positionRepository)
 
         // 示例: registerRepository(UserRepository())
         // 示例: registerRepository(TerritoryRepository())

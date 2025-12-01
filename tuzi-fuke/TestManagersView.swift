@@ -72,10 +72,28 @@ struct TestManagersView: View {
 
                 // 测试按钮组
                 VStack(spacing: 15) {
-                    testButton("匿名登录测试", action: testAnonymousLogin)
+                    testButton("真实账户登录测试", action: testRealLogin)
                     testButton("位置权限测试", action: testLocationPermission)
                     testButton("启动位置监听", action: startLocationUpdates)
                     testButton("数据连接测试", action: testDataConnection)
+
+                    // 新功能：位置数据采集
+                    NavigationLink(destination: LocationView()) {
+                        Text("📍 位置数据采集")
+                            .font(.body.weight(.medium))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.blue, Color.purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(10)
+                    }
+
                     testButton("运行所有测试", action: runAllTests)
                 }
                 .padding(.horizontal)
@@ -157,8 +175,8 @@ struct TestManagersView: View {
 
     // MARK: - 测试方法
 
-    private func testAnonymousLogin() async {
-        addTestResult("🔐 开始匿名登录测试...")
+    private func testRealLogin() async {
+        addTestResult("🔐 开始真实账户登录测试...")
         isRunningTests = true
 
         defer { isRunningTests = false }
@@ -167,13 +185,34 @@ struct TestManagersView: View {
             await authManager.signOut()
             addTestResult("  - 已登出现有用户")
 
-            try await authManager.signInAnonymously()
-            addTestResult("  - ✅ 匿名登录成功")
+            try await authManager.signInWithTestAccount()
+            addTestResult("  - ✅ 真实账户登录成功")
             addTestResult("  - 用户ID: \(authManager.currentUserId?.uuidString.prefix(8) ?? "无")")
             addTestResult("  - 用户名: \(authManager.userDisplayName)")
+            addTestResult("  - 账户类型: 真实email+password账户")
+
+            // 测试Supabase连接
+            await testSupabaseConnection()
 
         } catch {
-            addTestResult("  - ❌ 匿名登录失败: \(error.localizedDescription)")
+            addTestResult("  - ❌ 真实账户登录失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func testSupabaseConnection() async {
+        addTestResult("🔗 测试Supabase连接验证...")
+
+        // 检查认证连接
+        do {
+            let userId = await SupabaseManager.shared.getCurrentUserId()
+            if let userId = userId {
+                addTestResult("  - ✅ Supabase认证连接正常")
+                addTestResult("  - 真实用户ID: \(userId.uuidString.prefix(8))...")
+                addTestResult("  - 项目: https://urslgwtgnjcxlzzcwhfw.supabase.co")
+                addTestResult("  - 💡 请到Supabase控制台查看Authentication > Users")
+            } else {
+                addTestResult("  - ⚠️ 未检测到有效用户ID")
+            }
         }
     }
 
@@ -227,7 +266,7 @@ struct TestManagersView: View {
 
         defer { isRunningTests = false }
 
-        await testAnonymousLogin()
+        await testRealLogin()
         await testLocationPermission()
         await testDataConnection()
 
