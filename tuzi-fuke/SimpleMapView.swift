@@ -9,6 +9,7 @@ struct SimpleMapView: View {
     @ObservedObject var locationManager: LocationManager
     @ObservedObject var territoryManager: TerritoryManager
     @ObservedObject var authManager: AuthManager
+    @StateObject private var poiManager = POIManager.shared
 
     // MARK: - 回调
     var switchToDebugTab: (() -> Void)?
@@ -18,6 +19,7 @@ struct SimpleMapView: View {
     @State private var showLoginAlert = false
     @State private var showCollisionAlert = false
     @State private var collisionAlertMessage = ""
+    @State private var showPOIFilter = false
 
     // MARK: - 实时碰撞检测定时器
     @State private var collisionCheckTimer: Timer?
@@ -35,6 +37,7 @@ struct SimpleMapView: View {
             MapViewRepresentable(
                 locationManager: locationManager,
                 territoryManager: territoryManager,
+                poiManager: poiManager,
                 shouldCenterOnUser: $shouldCenterOnUser
             )
             .ignoresSafeArea()
@@ -51,17 +54,46 @@ struct SimpleMapView: View {
 
                     Spacer()
 
-                    // 定位按钮（右下角）
-                    Button(action: {
-                        shouldCenterOnUser = true
-                    }) {
-                        Image(systemName: "location.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .frame(width: 50, height: 50)
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                            .shadow(radius: 4)
+                    VStack(spacing: 12) {
+                        // POI 筛选按钮
+                        Button(action: {
+                            showPOIFilter.toggle()
+                        }) {
+                            ZStack {
+                                Image(systemName: "building.2.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                                    .frame(width: 50, height: 50)
+                                    .background(poiManager.filteredPOIs.isEmpty ? Color.gray : Color.purple)
+                                    .clipShape(Circle())
+                                    .shadow(radius: 4)
+
+                                // POI 数量角标
+                                if !poiManager.filteredPOIs.isEmpty {
+                                    Text("\(poiManager.filteredPOIs.count)")
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                        .padding(4)
+                                        .background(Color.red)
+                                        .clipShape(Circle())
+                                        .offset(x: 18, y: -18)
+                                }
+                            }
+                        }
+
+                        // 定位按钮（右下角）
+                        Button(action: {
+                            shouldCenterOnUser = true
+                        }) {
+                            Image(systemName: "location.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 50, height: 50)
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
                     }
                     .padding(.trailing, 16)
                     .padding(.bottom, 100)
@@ -95,6 +127,13 @@ struct SimpleMapView: View {
                             Text("附近领地: \(territoryManager.nearbyTerritories.count) 块")
                                 .font(.caption)
                                 .foregroundColor(.orange)
+                        }
+
+                        // 附近 POI
+                        if !poiManager.filteredPOIs.isEmpty {
+                            Text("附近POI: \(poiManager.filteredPOIs.count) 个")
+                                .font(.caption)
+                                .foregroundColor(.purple)
                         }
                     }
                     .padding(8)
@@ -165,6 +204,9 @@ struct SimpleMapView: View {
         } message: {
             Text(collisionAlertMessage)
         }
+        .sheet(isPresented: $showPOIFilter) {
+            POIFilterSheet(poiManager: poiManager)
+        }
         .onAppear {
             // 请求定位权限并开始更新
             locationManager.requestLocationPermission()
@@ -175,10 +217,11 @@ struct SimpleMapView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     shouldCenterOnUser = true
 
-                    // 查询领地数据
+                    // 查询领地数据和 POI 数据
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
+                            await poiManager.loadNearbyPOIs(location: location, radius: 2000)
                         }
                     }
                 }
@@ -695,7 +738,6 @@ struct SimpleMapView: View {
     SimpleMapView(
         locationManager: LocationManager.shared,
         territoryManager: TerritoryManager.shared,
-        authManager: AuthManager.shared,
-        switchToDebugTab: {}
+        authManager: AuthManager.shared
     )
 }
