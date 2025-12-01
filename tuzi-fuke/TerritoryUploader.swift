@@ -68,7 +68,7 @@ enum TerritoryRESTUploadError: Error, LocalizedError {
 actor TerritoryUploader {
 
     /// 上传领地数据到 Supabase REST API
-    func upload(_ data: sending TerritoryUploadData, supabaseUrl: String, anonKey: String, accessToken: String?) async throws {
+    func upload(_ data: TerritoryUploadData, supabaseUrl: String, anonKey: String, accessToken: String?) async throws {
         // 构建 URL
         let urlString = "\(supabaseUrl)/rest/v1/territories"
         guard let url = URL(string: urlString) else {
