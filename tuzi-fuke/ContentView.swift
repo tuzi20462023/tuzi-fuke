@@ -36,11 +36,18 @@ struct ContentView: View {
                     authManager: authManager,
                     switchToDebugTab: { selectedTab = 2 }
                 )
-                .navigationTitle("地图")
+                .navigationTitle(authManager.currentUser?.email ?? "地图")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
+                            // 显示当前用户
+                            if let user = authManager.currentUser {
+                                Text("当前用户: \(user.email ?? user.username)")
+                            }
+
+                            Divider()
+
                             Button(role: .destructive) {
                                 Task {
                                     await authManager.signOut()
@@ -54,6 +61,7 @@ struct ContentView: View {
                     }
                 }
             }
+            .navigationViewStyle(.stack)
             .tabItem {
                 Image(systemName: "map.fill")
                 Text("地图")
