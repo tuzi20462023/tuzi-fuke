@@ -49,7 +49,7 @@ struct LogViewerView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                     }
-                    .onChange(of: logger.logs.count) { _ in
+                    .onChange(of: logger.logs.count) { _, _ in
                         if autoScroll, let lastLog = filteredLogs.last {
                             withAnimation {
                                 proxy.scrollTo(lastLog.id, anchor: .bottom)

@@ -10,16 +10,50 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab = 0
     @StateObject private var territoryManager = TerritoryManager.shared
+    @ObservedObject private var authManager = AuthManager.shared
 
     var body: some View {
+        Group {
+            if authManager.isAuthenticated {
+                // 已登录 - 显示主界面
+                mainTabView
+            } else {
+                // 未登录 - 显示登录界面
+                AuthView(authManager: authManager)
+            }
+        }
+    }
+
+    // MARK: - 主界面 TabView
+
+    private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             // Tab 1: 地图（主界面）
-            SimpleMapView(
-                locationManager: LocationManager.shared,
-                territoryManager: territoryManager,
-                authManager: AuthManager.shared,
-                switchToDebugTab: { selectedTab = 1 }
-            )
+            NavigationView {
+                SimpleMapView(
+                    locationManager: LocationManager.shared,
+                    territoryManager: territoryManager,
+                    authManager: authManager,
+                    switchToDebugTab: { selectedTab = 2 }
+                )
+                .navigationTitle("地图")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button(role: .destructive) {
+                                Task {
+                                    await authManager.signOut()
+                                }
+                            } label: {
+                                Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
+                        } label: {
+                            Image(systemName: "person.circle")
+                        }
+                    }
+                }
+            }
             .tabItem {
                 Image(systemName: "map.fill")
                 Text("地图")

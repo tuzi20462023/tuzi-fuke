@@ -205,7 +205,7 @@ class ChatManager: ObservableObject {
     }
 
     /// 解析日期字符串
-    private static func parseDate(_ dateString: String) -> Date? {
+    nonisolated private static func parseDate(_ dateString: String) -> Date? {
         let formats = [
             "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZZZZZ",
             "yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ",
