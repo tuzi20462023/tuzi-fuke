@@ -83,25 +83,3 @@ struct Message: Codable, Identifiable, Equatable {
     }
 }
 
-// MARK: - 发送消息请求结构
-struct SendMessageRequest: Encodable {
-    let senderId: UUID
-    let content: String
-    let messageType: String
-    let senderName: String?
-
-    enum CodingKeys: String, CodingKey {
-        case senderId = "sender_id"
-        case content
-        case messageType = "message_type"
-        case senderName = "sender_name"
-    }
-}
-
-// MARK: - 消息上传数据（用于 REST API，避免 Swift 6 并发问题）
-struct MessageUploadData: Codable, Sendable {
-    let sender_id: String
-    let content: String
-    let message_type: String
-    let sender_name: String?
-}
