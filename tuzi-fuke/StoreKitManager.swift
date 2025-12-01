@@ -7,6 +7,8 @@
 
 import Foundation
 import StoreKit
+import Combine
+import Supabase
 
 // MARK: - 产品ID定义
 
