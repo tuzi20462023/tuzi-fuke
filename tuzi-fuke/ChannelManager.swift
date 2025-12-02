@@ -147,6 +147,21 @@ class ChannelManager: ObservableObject {
         await setupRealtimeForChannel(channel)
     }
 
+    /// 清除当前频道（切换到广播模式）
+    func clearCurrentChannel() {
+        currentChannel = nil
+        currentChannelMessages = []
+        print("📡 [ChannelManager] 切换到公共广播")
+
+        // 取消实时订阅
+        Task {
+            if let oldChannel = realtimeChannel {
+                await oldChannel.unsubscribe()
+                realtimeChannel = nil
+            }
+        }
+    }
+
     /// 加载频道消息
     func loadChannelMessages(for channel: CommunicationChannel) async {
         do {
