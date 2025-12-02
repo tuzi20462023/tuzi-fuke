@@ -8,6 +8,7 @@
 import Foundation
 import Supabase
 import CoreLocation
+import Combine
 
 // MARK: - DirectMessageManager
 
@@ -103,7 +104,7 @@ class DirectMessageManager: ObservableObject {
         }
 
         // 获取当前位置
-        let location = LocationManager.shared.location
+        let location = LocationManager.shared.currentLocation
         let lat = location?.coordinate.latitude
         let lon = location?.coordinate.longitude
 
@@ -152,7 +153,7 @@ class DirectMessageManager: ObservableObject {
             return
         }
 
-        guard let location = LocationManager.shared.location else {
+        guard let location = LocationManager.shared.currentLocation else {
             print("❌ [DirectMessageManager] 位置未知")
             return
         }
