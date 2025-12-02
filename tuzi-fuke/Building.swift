@@ -4,10 +4,323 @@
 //
 //  建筑数据模型 - 支持可变体架构
 //  Created by AI Assistant on 2025/11/21.
+//  Updated: DAY8 - 添加 BuildingTemplate, PlayerBuilding 等新模型
 //
 
 import Foundation
 import CoreLocation
+
+// MARK: - ========== DAY8 新增模型 ==========
+
+// MARK: - 建筑模板 (从数据库读取)
+
+/// 建筑模板 - 定义可建造的建筑类型
+struct BuildingTemplate: Identifiable, Codable {
+    let id: UUID
+    let templateId: String          // 如 "shelter_basic"
+    let name: String
+    let tier: Int                   // 1/2/3 级建筑
+    let category: NewBuildingCategory
+    let description: String?
+    let icon: String                // SF Symbol 名称
+    let requiredLevel: Int
+    let requiredResources: [String: Int]
+    let buildTimeHours: Double
+    let effects: [String: AnyCodableValue]
+    let maxPerTerritory: Int
+    let maxLevel: Int
+    let durabilityMax: Int
+    let isActive: Bool
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case templateId = "template_id"
+        case name
+        case tier
+        case category
+        case description
+        case icon
+        case requiredLevel = "required_level"
+        case requiredResources = "required_resources"
+        case buildTimeHours = "build_time_hours"
+        case effects
+        case maxPerTerritory = "max_per_territory"
+        case maxLevel = "max_level"
+        case durabilityMax = "durability_max"
+        case isActive = "is_active"
+        case createdAt = "created_at"
+    }
+
+    /// 格式化建造时间显示
+    var formattedBuildTime: String {
+        if buildTimeHours < 1 {
+            return "\(Int(buildTimeHours * 60))分钟"
+        } else if buildTimeHours == Double(Int(buildTimeHours)) {
+            return "\(Int(buildTimeHours))小时"
+        } else {
+            let hours = Int(buildTimeHours)
+            let minutes = Int((buildTimeHours - Double(hours)) * 60)
+            return "\(hours)小时\(minutes)分钟"
+        }
+    }
+
+    /// 格式化资源需求显示
+    var formattedResources: String {
+        requiredResources.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+    }
+}
+
+// MARK: - 新建筑分类 (DAY8)
+
+enum NewBuildingCategory: String, Codable, CaseIterable {
+    case survival = "survival"       // 生存
+    case storage = "storage"         // 存储
+    case production = "production"   // 生产
+    case energy = "energy"           // 能源
+    case defense = "defense"         // 防御
+
+    var displayName: String {
+        switch self {
+        case .survival: return "生存"
+        case .storage: return "存储"
+        case .production: return "生产"
+        case .energy: return "能源"
+        case .defense: return "防御"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .survival: return "house.fill"
+        case .storage: return "archivebox.fill"
+        case .production: return "hammer.fill"
+        case .energy: return "bolt.fill"
+        case .defense: return "shield.fill"
+        }
+    }
+
+    var color: String {
+        switch self {
+        case .survival: return "blue"
+        case .storage: return "brown"
+        case .production: return "green"
+        case .energy: return "yellow"
+        case .defense: return "red"
+        }
+    }
+}
+
+// MARK: - 玩家建筑 (已建造的建筑)
+
+/// 玩家已建造的建筑
+struct PlayerBuilding: Identifiable, Codable {
+    let id: UUID
+    let userId: UUID
+    let territoryId: UUID
+    let buildingTemplateId: UUID?
+    var buildingName: String
+    let buildingTemplateKey: String     // 如 "shelter_basic"
+    let location: GeoJSONPoint?
+    var status: PlayerBuildingStatus
+    let buildStartedAt: Date
+    var buildCompletedAt: Date?
+    let buildTimeHours: Double?
+    var level: Int
+    var durability: Int
+    var durabilityMax: Int
+    let createdAt: Date
+    var updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case territoryId = "territory_id"
+        case buildingTemplateId = "building_template_id"
+        case buildingName = "building_name"
+        case buildingTemplateKey = "building_template_key"
+        case location
+        case status
+        case buildStartedAt = "build_started_at"
+        case buildCompletedAt = "build_completed_at"
+        case buildTimeHours = "build_time_hours"
+        case level
+        case durability
+        case durabilityMax = "durability_max"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    /// 计算剩余建造时间（秒）
+    func remainingBuildTime() -> TimeInterval {
+        guard status == .constructing, let completedAt = buildCompletedAt else {
+            return 0
+        }
+        return max(0, completedAt.timeIntervalSinceNow)
+    }
+
+    /// 建造进度百分比 (0.0 - 1.0)
+    func buildProgress() -> Double {
+        guard status == .constructing, let hours = buildTimeHours else {
+            return status == .active ? 1.0 : 0.0
+        }
+        let totalTime = hours * 3600
+        let elapsed = Date().timeIntervalSince(buildStartedAt)
+        return min(1.0, elapsed / totalTime)
+    }
+
+    /// 格式化剩余时间
+    var formattedRemainingTime: String {
+        let remaining = remainingBuildTime()
+        if remaining <= 0 {
+            return "即将完成"
+        }
+        let hours = Int(remaining / 3600)
+        let minutes = Int((remaining.truncatingRemainder(dividingBy: 3600)) / 60)
+        if hours > 0 {
+            return "\(hours)小时\(minutes)分钟"
+        } else {
+            return "\(minutes)分钟"
+        }
+    }
+
+    /// 获取坐标
+    var coordinate: CLLocationCoordinate2D? {
+        guard let loc = location, loc.coordinates.count >= 2 else { return nil }
+        return CLLocationCoordinate2D(latitude: loc.coordinates[1], longitude: loc.coordinates[0])
+    }
+}
+
+// MARK: - 玩家建筑状态
+
+enum PlayerBuildingStatus: String, Codable {
+    case constructing = "constructing"  // 建造中
+    case active = "active"              // 运行中
+    case damaged = "damaged"            // 损坏
+    case inactive = "inactive"          // 停用
+
+    var displayName: String {
+        switch self {
+        case .constructing: return "建造中"
+        case .active: return "运行中"
+        case .damaged: return "已损坏"
+        case .inactive: return "已停用"
+        }
+    }
+
+    var color: String {
+        switch self {
+        case .constructing: return "blue"
+        case .active: return "green"
+        case .damaged: return "orange"
+        case .inactive: return "gray"
+        }
+    }
+}
+
+// MARK: - GeoJSON Point
+
+struct GeoJSONPoint: Codable, Sendable {
+    let type: String
+    let coordinates: [Double]  // [longitude, latitude]
+
+    init(longitude: Double, latitude: Double) {
+        self.type = "Point"
+        self.coordinates = [longitude, latitude]
+    }
+}
+
+// MARK: - 建造请求
+
+struct BuildingConstructionRequest {
+    let templateId: String
+    let territoryId: UUID
+    let location: CLLocationCoordinate2D?
+    let customName: String?
+}
+
+// MARK: - 建造结果
+
+struct BuildingConstructionResult {
+    let success: Bool
+    let building: PlayerBuilding?
+    let error: BuildingConstructionError?
+    let message: String
+}
+
+enum BuildingConstructionError: Error, LocalizedError {
+    case insufficientResources([String: Int])
+    case levelTooLow(required: Int, current: Int)
+    case maxBuildingsReached(Int)
+    case outsideTerritory
+    case tooCloseToExisting
+    case networkError(Error)
+    case unknown(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .insufficientResources(let resources):
+            let list = resources.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+            return "资源不足: \(list)"
+        case .levelTooLow(let required, let current):
+            return "等级不足（需要\(required)级，当前\(current)级）"
+        case .maxBuildingsReached(let max):
+            return "已达到该建筑的最大数量（\(max)）"
+        case .outsideTerritory:
+            return "建筑必须建在领地内"
+        case .tooCloseToExisting:
+            return "距离其他建筑太近"
+        case .networkError(let error):
+            return "网络错误: \(error.localizedDescription)"
+        case .unknown(let msg):
+            return msg
+        }
+    }
+}
+
+// MARK: - AnyCodableValue (简化版，用于解析 JSONB)
+
+struct AnyCodableValue: Codable {
+    let value: Any
+
+    init(_ value: Any) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let intVal = try? container.decode(Int.self) {
+            value = intVal
+        } else if let doubleVal = try? container.decode(Double.self) {
+            value = doubleVal
+        } else if let stringVal = try? container.decode(String.self) {
+            value = stringVal
+        } else if let boolVal = try? container.decode(Bool.self) {
+            value = boolVal
+        } else {
+            value = 0
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        if let intVal = value as? Int {
+            try container.encode(intVal)
+        } else if let doubleVal = value as? Double {
+            try container.encode(doubleVal)
+        } else if let stringVal = value as? String {
+            try container.encode(stringVal)
+        } else if let boolVal = value as? Bool {
+            try container.encode(boolVal)
+        }
+    }
+
+    var intValue: Int? { value as? Int }
+    var doubleValue: Double? { value as? Double }
+    var stringValue: String? { value as? String }
+}
+
+// MARK: - ========== 以下是原有的简化版模型（保持向后兼容）==========
 
 // MARK: - 建筑数据模型
 
