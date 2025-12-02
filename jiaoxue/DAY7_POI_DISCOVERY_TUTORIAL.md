@@ -253,6 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_discoveries_user ON user_poi_discoveries(user_id)
 ### ⚠️ 关键代码段
 
 **防止首次弹窗的预标记逻辑**:
+
 ```swift
 /// 预先标记当前已在发现范围内的 POI
 private func markNearbyPOIsAsTriggered(location: CLLocation) {
@@ -274,6 +275,7 @@ private func markNearbyPOIsAsTriggered(location: CLLocation) {
 ```
 
 **200米重置逻辑**:
+
 ```swift
 /// 清理远离的已触发 POI（超过 200 米后允许再次触发）
 private func cleanupDistantTriggeredPOIs(currentLocation: CLLocation) {
@@ -387,25 +389,29 @@ UPDATE mapkit_poi_candidates SET processed = TRUE WHERE NOT processed;
 ### 测试步骤
 
 1. **启动应用**
+   
    - 授权位置权限
    - 等待首次定位成功
    - 查看日志确认 POI 搜索完成
 
 2. **检查数据库**
+   
    ```sql
    -- 查看候选数量
    SELECT COUNT(*) FROM mapkit_poi_candidates;
-
+   
    -- 查看正式POI数量
    SELECT COUNT(*) FROM pois WHERE is_active = TRUE;
    ```
 
 3. **开始探索**
+   
    - 点击开始探索
    - 走向附近的药店/超市
    - 进入100米范围时应弹出发现提示
 
 4. **验证防重复机制**
+   
    - 停止探索
    - 再次开始探索
    - 同一个POI不应立即弹出（因为还在100米内）
@@ -414,6 +420,7 @@ UPDATE mapkit_poi_candidates SET processed = TRUE WHERE NOT processed;
 ### 🤖 排查问题的AI提示词
 
 **如果没有搜索到POI**:
+
 ```
 帮我查一下：
 1. mapkit_poi_candidates 表有数据吗？
@@ -422,6 +429,7 @@ UPDATE mapkit_poi_candidates SET processed = TRUE WHERE NOT processed;
 ```
 
 **如果弹窗不出现**:
+
 ```
 POI发现弹窗不出现，这是日志：
 [粘贴控制台日志]
@@ -433,6 +441,7 @@ POI发现弹窗不出现，这是日志：
 ```
 
 **如果每次开始探索都弹窗**:
+
 ```
 每次开始探索都立即弹出附近POI，而不是走过去才弹。
 
@@ -453,6 +462,7 @@ POI发现弹窗不出现，这是日志：
 **原因**: Supabase SDK 使用 `returning: .minimal` 时解码空响应失败
 
 **解决**:
+
 ```swift
 // 错误方式
 try await supabase.database
@@ -476,6 +486,7 @@ try await supabase.database
 **原因**: pois 表有类型约束，不包含 pharmacy
 
 **解决**: 迁移时映射类型
+
 ```sql
 CASE poi_type
     WHEN 'pharmacy' THEN 'hospital'
@@ -489,6 +500,7 @@ END
 **原因**: 坐标系不一致（GPS用WGS-84，地图用GCJ-02）
 
 **解决**: 统一转换到 GCJ-02
+
 ```swift
 let gcjCoord = CoordinateConverter.wgs84ToGcj02(location.coordinate)
 let currentLocation = CLLocation(latitude: gcjCoord.latitude, longitude: gcjCoord.longitude)
@@ -512,13 +524,13 @@ let currentLocation = CLLocation(latitude: gcjCoord.latitude, longitude: gcjCoor
 
 ### 技术栈
 
-| 技术 | 用途 |
-|------|------|
-| MapKit MKLocalSearch | 搜索附近真实商户 |
-| Supabase Database | POI数据存储 |
-| CoreLocation | 位置追踪和距离计算 |
-| CoordinateConverter | WGS-84/GCJ-02转换 |
-| SwiftUI Alert | 发现弹窗 |
+| 技术                   | 用途              |
+| -------------------- | --------------- |
+| MapKit MKLocalSearch | 搜索附近真实商户        |
+| Supabase Database    | POI数据存储         |
+| CoreLocation         | 位置追踪和距离计算       |
+| CoordinateConverter  | WGS-84/GCJ-02转换 |
+| SwiftUI Alert        | 发现弹窗            |
 
 ### AI协作要点
 
@@ -542,20 +554,24 @@ let currentLocation = CLLocation(latitude: gcjCoord.latitude, longitude: gcjCoor
 完成基础功能后，可以继续实现：
 
 ### POI详情页
+
 - 显示POI完整信息
 - 可领取的资源列表
 - 领取按钮
 
 ### 发现历史
+
 - 用户发现过的POI列表
 - 按时间/类型排序
 - 可以导航到POI位置
 
 ### POI刷新机制
+
 - 资源定时恢复
 - 不同类型POI恢复速度不同
 
 ### 稀有POI
+
 - 随机生成稀有POI
 - 更高的资源奖励
 
@@ -564,6 +580,7 @@ let currentLocation = CLLocation(latitude: gcjCoord.latitude, longitude: gcjCoor
 **恭喜完成 Day 7！** 🎉
 
 你已经掌握了 POI 探索发现系统的开发，包括：
+
 - MapKit 本地搜索
 - 100米触发机制
 - 防重复弹窗的触发记录
