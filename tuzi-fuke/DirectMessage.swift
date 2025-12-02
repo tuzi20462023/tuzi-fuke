@@ -121,7 +121,7 @@ struct ConversationUser: Identifiable, Equatable {
 
 struct NearbyPlayer: Identifiable, Codable {
     let id: UUID
-    let username: String
+    let username: String?
     let callsign: String?
     let distanceKm: Double
     let lastSeenAt: Date?
@@ -135,7 +135,7 @@ struct NearbyPlayer: Identifiable, Codable {
     }
 
     var displayName: String {
-        callsign ?? username
+        callsign ?? username ?? "幸存者_\(id.uuidString.prefix(8))"
     }
 
     var distanceText: String {

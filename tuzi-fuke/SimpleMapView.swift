@@ -9,6 +9,7 @@ struct SimpleMapView: View {
     @ObservedObject var locationManager: LocationManager
     @ObservedObject var territoryManager: TerritoryManager
     @ObservedObject var authManager: AuthManager
+    @ObservedObject var poiManager: POIManager = POIManager.shared
 
     // MARK: - 回调
     var switchToDebugTab: (() -> Void)?
@@ -22,6 +23,10 @@ struct SimpleMapView: View {
     // MARK: - 实时碰撞检测定时器
     @State private var collisionCheckTimer: Timer?
     private let collisionCheckInterval: TimeInterval = 5.0  // 每5秒检查一次
+
+    // MARK: - POI 检测定时器
+    @State private var poiCheckTimer: Timer?
+    private let poiCheckInterval: TimeInterval = 2.0  // 每2秒检查一次POI
 
     // MARK: - 触觉反馈生成器
     private let notificationFeedback = UINotificationFeedbackGenerator()
@@ -151,6 +156,11 @@ struct SimpleMapView: View {
             if case .success = territoryManager.claimingState {
                 successOverlay
             }
+
+            // POI 发现弹窗
+            if poiManager.showDiscoveryAlert, let poi = poiManager.lastDiscoveredPOI {
+                poiDiscoveryOverlay(poi: poi)
+            }
         }
         .alert("需要登录", isPresented: $showLoginAlert) {
             Button("去登录") {
@@ -171,14 +181,23 @@ struct SimpleMapView: View {
             Task {
                 try? await locationManager.startLocationUpdates()
 
-                // 首次定位后居中并查询附近领地
+                // 首次定位后居中并查询附近领地和POI
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     shouldCenterOnUser = true
 
-                    // 查询领地数据
+                    // 查询领地数据和POI数据
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
+
+                            // 使用 onLocationReady 触发完整的 POI 流程
+                            // 包括: 搜索MapKit → 提交候选 → 创建POI → 加载已发现 → 更新缓存
+                            if let userId = authManager.currentUser?.id {
+                                await poiManager.onLocationReady(location: location, userId: userId)
+                            } else {
+                                // 未登录时只搜索本地 POI
+                                await poiManager.searchNearbyPOIs(location: location)
+                            }
                         }
                     }
                 }
@@ -187,12 +206,15 @@ struct SimpleMapView: View {
         .onChange(of: locationManager.isTracking) { _, isTracking in
             if isTracking {
                 startCollisionMonitoring()
+                startPOIMonitoring()
             } else {
                 stopCollisionMonitoring()
+                stopPOIMonitoring()
             }
         }
         .onDisappear {
             stopCollisionMonitoring()
+            stopPOIMonitoring()
         }
     }
 
@@ -686,6 +708,117 @@ struct SimpleMapView: View {
         if let location = locationManager.currentLocation {
             await territoryManager.refreshTerritories(at: location)
         }
+    }
+
+    // MARK: - POI 监控
+
+    /// 开始 POI 监控（探索时检测附近 POI）
+    private func startPOIMonitoring() {
+        guard let userId = authManager.currentUser?.id else {
+            appLog(.warning, category: "POI监控", message: "用户未登录，跳过POI监控")
+            return
+        }
+
+        appLog(.info, category: "POI监控", message: "🚀 启动POI检测，间隔: \(poiCheckInterval)秒")
+
+        // 重置检查位置
+        poiManager.resetCheckLocation()
+
+        // 停止之前的定时器
+        poiCheckTimer?.invalidate()
+
+        // 搜索附近POI
+        Task {
+            if let location = locationManager.currentLocation {
+                await poiManager.searchNearbyPOIs(location: location)
+            }
+        }
+
+        // 启动定时器
+        poiCheckTimer = Timer.scheduledTimer(withTimeInterval: poiCheckInterval, repeats: true) { _ in
+            Task { @MainActor in
+                await self.checkNearbyPOIs(userId: userId)
+            }
+        }
+    }
+
+    /// 停止 POI 监控
+    private func stopPOIMonitoring() {
+        poiCheckTimer?.invalidate()
+        poiCheckTimer = nil
+        appLog(.info, category: "POI监控", message: "🛑 停止POI检测")
+    }
+
+    /// 检查附近 POI
+    private func checkNearbyPOIs(userId: UUID) async {
+        guard let location = locationManager.currentLocation else { return }
+
+        // 检查是否有 POI 被发现
+        if let _ = await poiManager.checkNearbyPOIs(location: location, userId: userId) {
+            // 触发成功震动
+            notificationFeedback.notificationOccurred(.success)
+        }
+    }
+
+    // MARK: - POI 发现弹窗
+
+    private func poiDiscoveryOverlay(poi: POI) -> some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 16) {
+                // 标题
+                HStack {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.yellow)
+                        .font(.title2)
+                    Text("发现POI!")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+
+                // POI 图标和名称
+                HStack(spacing: 12) {
+                    Image(systemName: poi.type.iconName)
+                        .font(.largeTitle)
+                        .foregroundColor(.yellow)
+                        .frame(width: 50, height: 50)
+                        .background(Color.white.opacity(0.2))
+                        .cornerRadius(10)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("你发现了【\(poi.name)】")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                        Text("类型: \(poi.type.displayName)")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                        Text("可获得资源: \(poi.remainingItems) 个")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+
+                // 确认按钮
+                Button("太棒了!") {
+                    poiManager.clearDiscoveryAlert()
+                }
+                .foregroundColor(.black)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 40)
+                .padding(.vertical, 12)
+                .background(Color.yellow)
+                .cornerRadius(25)
+            }
+            .padding(24)
+            .background(Color.black.opacity(0.9))
+            .cornerRadius(20)
+            .padding(.horizontal, 30)
+            .padding(.bottom, 150)
+            .shadow(color: .yellow.opacity(0.3), radius: 20, x: 0, y: 0)
+        }
+        .transition(.scale.combined(with: .opacity))
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: poiManager.showDiscoveryAlert)
     }
 }
 

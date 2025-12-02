@@ -11,16 +11,48 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @StateObject private var territoryManager = TerritoryManager.shared
     @ObservedObject private var authManager = AuthManager.shared
+    @StateObject private var locationManager = LocationManager.shared
 
     var body: some View {
         Group {
             if authManager.isAuthenticated {
                 // 已登录 - 显示主界面
                 mainTabView
+                    .task {
+                        // 自动启动位置心跳上传
+                        await startLocationHeartbeat()
+                    }
             } else {
                 // 未登录 - 显示登录界面
                 AuthView(authManager: authManager)
             }
+        }
+    }
+
+    /// 启动位置心跳（用于私聊的附近玩家检测）
+    private func startLocationHeartbeat() async {
+        guard let userId = authManager.currentUser?.id else {
+            print("❌ [ContentView] 无法获取用户ID，跳过位置心跳")
+            return
+        }
+
+        // 请求位置权限
+        locationManager.requestLocationPermission()
+
+        // 等待权限获取
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+
+        guard locationManager.hasLocationPermission else {
+            print("❌ [ContentView] 没有位置权限，跳过位置心跳")
+            return
+        }
+
+        // 启动位置心跳（30秒采集一次，5分钟上传一次）
+        do {
+            try await locationManager.startLocationCollection(userId: userId)
+            print("✅ [ContentView] 位置心跳已启动，用户: \(userId)")
+        } catch {
+            print("❌ [ContentView] 位置心跳启动失败: \(error)")
         }
     }
 

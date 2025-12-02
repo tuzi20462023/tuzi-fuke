@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ConversationListView: View {
     @StateObject private var messageManager = DirectMessageManager.shared
@@ -38,6 +39,7 @@ struct ConversationListView: View {
             }
         }
         .task {
+            await deviceManager.loadDevices()  // 确保设备已加载
             await messageManager.loadConversations()
         }
         .sheet(isPresented: $showNearbyPlayers) {
@@ -78,14 +80,7 @@ struct ConversationListView: View {
     private var conversationList: some View {
         List {
             ForEach(messageManager.conversations) { conversation in
-                NavigationLink {
-                    DirectChatView(
-                        recipientId: conversation.id,
-                        recipientName: conversation.displayName
-                    )
-                } label: {
-                    ConversationRow(conversation: conversation)
-                }
+                ConversationRowWithChat(conversation: conversation)
             }
         }
         .listStyle(.plain)
@@ -140,6 +135,28 @@ struct ConversationListView: View {
             Spacer()
         }
         .padding()
+    }
+}
+
+// MARK: - 对话行（带聊天功能）
+
+struct ConversationRowWithChat: View {
+    let conversation: ConversationUser
+    @State private var showChat = false
+
+    var body: some View {
+        Button {
+            showChat = true
+        } label: {
+            ConversationRow(conversation: conversation)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showChat) {
+            DirectChatView(
+                recipientId: conversation.id,
+                recipientName: conversation.displayName
+            )
+        }
     }
 }
 
@@ -217,7 +234,6 @@ struct NearbyPlayersView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var messageManager = DirectMessageManager.shared
     @StateObject private var deviceManager = DeviceManager.shared
-    @State private var selectedPlayer: NearbyPlayer?
 
     var body: some View {
         NavigationView {
@@ -252,15 +268,16 @@ struct NearbyPlayersView: View {
                 }
             }
             .task {
+                await deviceManager.loadDevices()  // 确保设备已加载
+                await messageManager.reportCurrentLocation()  // 上报位置
                 await messageManager.loadNearbyPlayers()
             }
-        }
-        .sheet(item: $selectedPlayer) { player in
-            NavigationView {
-                DirectChatView(
-                    recipientId: player.id,
-                    recipientName: player.displayName
-                )
+            .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in
+                // 每15秒自动刷新：上报位置 + 刷新附近玩家
+                Task {
+                    await messageManager.reportCurrentLocation()
+                    await messageManager.loadNearbyPlayers()
+                }
             }
         }
     }
@@ -291,13 +308,10 @@ struct NearbyPlayersView: View {
     private var playerList: some View {
         List {
             ForEach(messageManager.nearbyPlayers) { player in
-                NearbyPlayerRow(
+                NearbyPlayerRowWithChat(
                     player: player,
                     deviceRangeKm: deviceManager.activeDevice?.effectiveRangeKm ?? 0
                 )
-                .onTapGesture {
-                    selectedPlayer = player
-                }
             }
         }
         .listStyle(.plain)
@@ -325,6 +339,29 @@ struct NearbyPlayersView: View {
             Spacer()
         }
         .padding()
+    }
+}
+
+// MARK: - 附近玩家行（带聊天功能）
+
+struct NearbyPlayerRowWithChat: View {
+    let player: NearbyPlayer
+    let deviceRangeKm: Double
+    @State private var showChat = false
+
+    var body: some View {
+        Button {
+            showChat = true
+        } label: {
+            NearbyPlayerRow(player: player, deviceRangeKm: deviceRangeKm)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showChat) {
+            DirectChatView(
+                recipientId: player.id,
+                recipientName: player.displayName
+            )
+        }
     }
 }
 

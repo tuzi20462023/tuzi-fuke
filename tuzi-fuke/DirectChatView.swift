@@ -20,6 +20,11 @@ struct DirectChatView: View {
     @State private var errorText = ""
     @FocusState private var isInputFocused: Bool
 
+    // 通讯状态（计算属性）
+    private var canSendStatus: (canSend: Bool, reason: String?) {
+        messageManager.canCommunicateWith(userId: recipientId)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // 顶部导航栏
@@ -36,6 +41,7 @@ struct DirectChatView: View {
         }
         .background(Color(.systemGroupedBackground))
         .task {
+            await deviceManager.loadDevices()
             await messageManager.loadMessages(with: recipientId)
         }
         .onDisappear {
@@ -96,10 +102,8 @@ struct DirectChatView: View {
     // MARK: - 通讯状态栏
 
     private var communicationStatusBar: some View {
-        let (canSend, reason) = messageManager.canCommunicateWith(userId: recipientId)
-
-        return Group {
-            if !canSend, let reason = reason {
+        Group {
+            if !canSendStatus.canSend, let reason = canSendStatus.reason {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
@@ -184,14 +188,17 @@ struct DirectChatView: View {
     // MARK: - 输入栏
 
     private var inputBar: some View {
-        let (canSend, _) = messageManager.canCommunicateWith(userId: recipientId)
-
-        return HStack(spacing: 12) {
-            TextField("输入消息...", text: $messageText, axis: .vertical)
+        HStack(spacing: 12) {
+            TextField("输入消息...", text: $messageText)
                 .textFieldStyle(.roundedBorder)
-                .lineLimit(1...4)
                 .focused($isInputFocused)
-                .disabled(!canSend)
+                .disabled(!canSendStatus.canSend)
+                .submitLabel(.send)
+                .onSubmit {
+                    if canSendButton {
+                        sendMessage()
+                    }
+                }
 
             Button {
                 sendMessage()
@@ -208,8 +215,7 @@ struct DirectChatView: View {
     }
 
     private var canSendButton: Bool {
-        let (canSend, _) = messageManager.canCommunicateWith(userId: recipientId)
-        return canSend && !messageText.isEmpty && !isSending
+        return canSendStatus.canSend && !messageText.isEmpty && !isSending
     }
 
     // MARK: - 发送消息

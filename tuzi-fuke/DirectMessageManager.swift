@@ -172,6 +172,67 @@ class DirectMessageManager: ObservableObject {
         }
     }
 
+    /// 上报当前位置到 player_locations_realtime 表
+    func reportCurrentLocation() async {
+        guard let userId = await SupabaseManager.shared.getCurrentUserId() else {
+            print("❌ [DirectMessageManager] 未登录，跳过位置上报")
+            return
+        }
+
+        guard let location = LocationManager.shared.currentLocation else {
+            print("❌ [DirectMessageManager] 位置未知，跳过位置上报")
+            return
+        }
+
+        // 获取设备类型
+        let deviceType = DeviceManager.shared.activeDevice?.deviceType.rawValue ?? "radio"
+
+        do {
+            try await updatePlayerLocationViaRPC(
+                userId: userId,
+                lat: location.coordinate.latitude,
+                lon: location.coordinate.longitude,
+                deviceType: deviceType
+            )
+            print("✅ [DirectMessageManager] 位置上报成功: (\(location.coordinate.latitude), \(location.coordinate.longitude))")
+        } catch {
+            print("❌ [DirectMessageManager] 位置上报失败: \(error)")
+        }
+    }
+
+    /// 调用 update_player_location RPC
+    private func updatePlayerLocationViaRPC(userId: UUID, lat: Double, lon: Double, deviceType: String) async throws {
+        let url = SupabaseConfig.supabaseURL
+            .appendingPathComponent("rest/v1/rpc/update_player_location")
+
+        let body: [String: Any] = [
+            "p_user_id": userId.uuidString,
+            "p_lat": lat,
+            "p_lon": lon,
+            "p_device_type": deviceType
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: body)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = jsonData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(SupabaseConfig.supabaseAnonKey, forHTTPHeaderField: "apikey")
+
+        if let accessToken = try? await supabase.auth.session.accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
+            throw DirectMessageError.sendFailed
+        }
+    }
+
     /// 检查是否可以与目标用户通讯（L4 距离检测）
     func canCommunicateWith(userId: UUID) -> (canSend: Bool, reason: String?) {
         let deviceManager = DeviceManager.shared
@@ -355,11 +416,76 @@ class DirectMessageManager: ObservableObject {
 
     /// 获取附近玩家
     private func fetchNearbyPlayersViaREST(userId: UUID, lat: Double, lon: Double, rangeKm: Double) async throws -> [NearbyPlayer] {
-        // 使用 RPC 函数获取附近玩家（需要数据库支持）
-        // 暂时返回空数组，等数据库函数创建后启用
-        print("💬 [DirectMessageManager] 附近玩家功能需要数据库RPC支持")
-        return []
+        // 调用 RPC 函数 get_nearby_players
+        let url = SupabaseConfig.supabaseURL
+            .appendingPathComponent("rest/v1/rpc/get_nearby_players")
+
+        let body: [String: Any] = [
+            "p_user_id": userId.uuidString,
+            "p_lat": lat,
+            "p_lon": lon,
+            "p_range_km": rangeKm
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: body)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = jsonData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(SupabaseConfig.supabaseAnonKey, forHTTPHeaderField: "apikey")
+
+        if let accessToken = try? await supabase.auth.session.accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ [DirectMessageManager] 无效响应")
+            return []
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
+            print("❌ [DirectMessageManager] RPC调用失败: \(httpResponse.statusCode) - \(errorBody)")
+            return []
+        }
+
+        // 解析响应
+        let players = try Self.nearbyPlayerDecoder.decode([NearbyPlayerResponse].self, from: data)
+
+        return players.map { response in
+            NearbyPlayer(
+                id: response.id,
+                username: response.username,
+                callsign: response.callsign,
+                distanceKm: response.distance_km,
+                lastSeenAt: response.last_seen_at
+            )
+        }
     }
+
+    // 用于解析 RPC 响应的结构体
+    private struct NearbyPlayerResponse: Codable {
+        let id: UUID
+        let username: String?
+        let callsign: String?
+        let distance_km: Double
+        let last_seen_at: Date?
+    }
+
+    // 附近玩家专用解码器
+    private static let nearbyPlayerDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            return parseDate(dateString) ?? Date()
+        }
+        return decoder
+    }()
 
     /// 标记消息为已读
     private func markMessagesAsRead(from senderId: UUID) async {
