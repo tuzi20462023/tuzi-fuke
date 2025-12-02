@@ -20,6 +20,12 @@ struct SimpleMapView: View {
     @State private var showCollisionAlert = false
     @State private var collisionAlertMessage = ""
 
+    // MARK: - 建筑系统状态
+    @State private var showTerritoryPicker = false
+    @State private var selectedTerritoryForBuilding: Territory?
+    @State private var showBuildingsView = false
+    @StateObject private var buildingManager = BuildingManager.shared
+
     // MARK: - 实时碰撞检测定时器
     @State private var collisionCheckTimer: Timer?
     private let collisionCheckInterval: TimeInterval = 5.0  // 每5秒检查一次
@@ -56,17 +62,48 @@ struct SimpleMapView: View {
 
                     Spacer()
 
-                    // 定位按钮（右下角）
-                    Button(action: {
-                        shouldCenterOnUser = true
-                    }) {
-                        Image(systemName: "location.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .frame(width: 50, height: 50)
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                            .shadow(radius: 4)
+                    // 右侧按钮组
+                    VStack(spacing: 12) {
+                        // 建筑按钮
+                        Button(action: {
+                            if authManager.currentUser != nil {
+                                if territoryManager.territories.isEmpty {
+                                    // 没有领地，提示需要先圈地
+                                    collisionAlertMessage = "请先圈地再建造建筑"
+                                    showCollisionAlert = true
+                                } else if territoryManager.territories.count == 1 {
+                                    // 只有一个领地，直接进入
+                                    selectedTerritoryForBuilding = territoryManager.territories.first
+                                    showBuildingsView = true
+                                } else {
+                                    // 多个领地，显示选择器
+                                    showTerritoryPicker = true
+                                }
+                            } else {
+                                showLoginAlert = true
+                            }
+                        }) {
+                            Image(systemName: "building.2.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 50, height: 50)
+                                .background(Color.orange)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
+
+                        // 定位按钮
+                        Button(action: {
+                            shouldCenterOnUser = true
+                        }) {
+                            Image(systemName: "location.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 50, height: 50)
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                                .shadow(radius: 4)
+                        }
                     }
                     .padding(.trailing, 16)
                     .padding(.bottom, 100)
@@ -174,6 +211,21 @@ struct SimpleMapView: View {
             Button("确定", role: .cancel) {}
         } message: {
             Text(collisionAlertMessage)
+        }
+        // 领地选择器（多个领地时）
+        .sheet(isPresented: $showTerritoryPicker) {
+            territoryPickerSheet
+        }
+        // 建筑管理视图
+        .sheet(isPresented: $showBuildingsView) {
+            if let territory = selectedTerritoryForBuilding {
+                TerritoryBuildingsView(
+                    territoryId: territory.id,
+                    territoryName: territory.name ?? "我的领地",
+                    territoryCenter: territory.centerLocation.coordinate,
+                    territoryRadius: territory.radius
+                )
+            }
         }
         .onAppear {
             // 请求定位权限并开始更新
@@ -757,6 +809,62 @@ struct SimpleMapView: View {
         if let _ = await poiManager.checkNearbyPOIs(location: location, userId: userId) {
             // 触发成功震动
             notificationFeedback.notificationOccurred(.success)
+        }
+    }
+
+    // MARK: - 领地选择器
+
+    private var territoryPickerSheet: some View {
+        NavigationView {
+            List {
+                ForEach(territoryManager.territories) { territory in
+                    Button {
+                        selectedTerritoryForBuilding = territory
+                        showTerritoryPicker = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showBuildingsView = true
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.title2)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(territory.name ?? "我的领地")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text("半径: \(Int(territory.radius))m")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            // 建筑数量
+                            let buildingCount = buildingManager.buildingCount(in: territory.id)
+                            if buildingCount > 0 {
+                                Text("\(buildingCount) 个建筑")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("选择领地")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        showTerritoryPicker = false
+                    }
+                }
+            }
         }
     }
 
