@@ -69,10 +69,10 @@ struct ContentView: View {
             .tag(0)
 
             // Tab 2: 聊天（通信系统）
-            ChatView()
+            CommunicationHubView()
                 .tabItem {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
-                    Text("聊天")
+                    Text("通讯")
                 }
                 .tag(1)
 
