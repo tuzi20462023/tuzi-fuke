@@ -6,12 +6,12 @@
 //
 
 import SwiftUI
-import Combine
 
 struct ConversationListView: View {
     @StateObject private var messageManager = DirectMessageManager.shared
     @StateObject private var deviceManager = DeviceManager.shared
     @State private var showNearbyPlayers = false
+    @State private var selectedConversation: ConversationUser?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,23 +27,18 @@ struct ConversationListView: View {
                 conversationList
             }
         }
-        .navigationTitle("私聊")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showNearbyPlayers = true
-                } label: {
-                    Image(systemName: "person.badge.plus")
-                }
-            }
-        }
         .task {
-            await deviceManager.loadDevices()  // 确保设备已加载
+            await deviceManager.loadDevices()
             await messageManager.loadConversations()
         }
         .sheet(isPresented: $showNearbyPlayers) {
             NearbyPlayersView()
+        }
+        .sheet(item: $selectedConversation) { conversation in
+            DirectChatView(
+                recipientId: conversation.id,
+                recipientName: conversation.displayName
+            )
         }
     }
 
@@ -67,6 +62,33 @@ struct ConversationListView: View {
                     }
 
                     Spacer()
+
+                    // 添加附近幸存者按钮
+                    Button {
+                        showNearbyPlayers = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray6))
+            } else {
+                // 没有设备时也显示按钮
+                HStack {
+                    Text("无通讯设备")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    Button {
+                        showNearbyPlayers = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundColor(.blue)
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -80,7 +102,12 @@ struct ConversationListView: View {
     private var conversationList: some View {
         List {
             ForEach(messageManager.conversations) { conversation in
-                ConversationRowWithChat(conversation: conversation)
+                Button {
+                    selectedConversation = conversation
+                } label: {
+                    ConversationRow(conversation: conversation)
+                }
+                .buttonStyle(.plain)
             }
         }
         .listStyle(.plain)
@@ -135,28 +162,6 @@ struct ConversationListView: View {
             Spacer()
         }
         .padding()
-    }
-}
-
-// MARK: - 对话行（带聊天功能）
-
-struct ConversationRowWithChat: View {
-    let conversation: ConversationUser
-    @State private var showChat = false
-
-    var body: some View {
-        Button {
-            showChat = true
-        } label: {
-            ConversationRow(conversation: conversation)
-        }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $showChat) {
-            DirectChatView(
-                recipientId: conversation.id,
-                recipientName: conversation.displayName
-            )
-        }
     }
 }
 
@@ -234,6 +239,7 @@ struct NearbyPlayersView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var messageManager = DirectMessageManager.shared
     @StateObject private var deviceManager = DeviceManager.shared
+    @State private var selectedPlayer: NearbyPlayer?
 
     var body: some View {
         NavigationView {
@@ -268,17 +274,15 @@ struct NearbyPlayersView: View {
                 }
             }
             .task {
-                await deviceManager.loadDevices()  // 确保设备已加载
-                await messageManager.reportCurrentLocation()  // 上报位置
+                await deviceManager.loadDevices()
                 await messageManager.loadNearbyPlayers()
             }
-            .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { _ in
-                // 每15秒自动刷新：上报位置 + 刷新附近玩家
-                Task {
-                    await messageManager.reportCurrentLocation()
-                    await messageManager.loadNearbyPlayers()
-                }
-            }
+        }
+        .sheet(item: $selectedPlayer) { player in
+            DirectChatView(
+                recipientId: player.id,
+                recipientName: player.displayName
+            )
         }
     }
 
@@ -308,10 +312,13 @@ struct NearbyPlayersView: View {
     private var playerList: some View {
         List {
             ForEach(messageManager.nearbyPlayers) { player in
-                NearbyPlayerRowWithChat(
+                NearbyPlayerRow(
                     player: player,
                     deviceRangeKm: deviceManager.activeDevice?.effectiveRangeKm ?? 0
                 )
+                .onTapGesture {
+                    selectedPlayer = player
+                }
             }
         }
         .listStyle(.plain)
@@ -339,29 +346,6 @@ struct NearbyPlayersView: View {
             Spacer()
         }
         .padding()
-    }
-}
-
-// MARK: - 附近玩家行（带聊天功能）
-
-struct NearbyPlayerRowWithChat: View {
-    let player: NearbyPlayer
-    let deviceRangeKm: Double
-    @State private var showChat = false
-
-    var body: some View {
-        Button {
-            showChat = true
-        } label: {
-            NearbyPlayerRow(player: player, deviceRangeKm: deviceRangeKm)
-        }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $showChat) {
-            DirectChatView(
-                recipientId: player.id,
-                recipientName: player.displayName
-            )
-        }
     }
 }
 

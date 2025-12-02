@@ -11,7 +11,7 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @StateObject private var territoryManager = TerritoryManager.shared
     @ObservedObject private var authManager = AuthManager.shared
-    @StateObject private var locationManager = LocationManager.shared
+    @StateObject private var locationTracker = LocationTrackerManager.shared
 
     var body: some View {
         Group {
@@ -19,8 +19,12 @@ struct ContentView: View {
                 // 已登录 - 显示主界面
                 mainTabView
                     .task {
-                        // 自动启动位置心跳上传
-                        await startLocationHeartbeat()
+                        // 启动位置追踪（用于附近玩家功能）
+                        await startLocationTracking()
+                    }
+                    .onDisappear {
+                        // 停止位置追踪
+                        locationTracker.stopTracking()
                     }
             } else {
                 // 未登录 - 显示登录界面
@@ -29,31 +33,29 @@ struct ContentView: View {
         }
     }
 
-    /// 启动位置心跳（用于私聊的附近玩家检测）
-    private func startLocationHeartbeat() async {
-        guard let userId = authManager.currentUser?.id else {
-            print("❌ [ContentView] 无法获取用户ID，跳过位置心跳")
-            return
-        }
-
-        // 请求位置权限
+    /// 启动位置追踪
+    private func startLocationTracking() async {
+        // 确保有位置权限
+        let locationManager = LocationManager.shared
         locationManager.requestLocationPermission()
 
-        // 等待权限获取
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+        // 等待权限
+        try? await Task.sleep(nanoseconds: 500_000_000)
 
         guard locationManager.hasLocationPermission else {
-            print("❌ [ContentView] 没有位置权限，跳过位置心跳")
+            print("❌ [ContentView] 没有位置权限，跳过位置追踪")
             return
         }
 
-        // 启动位置心跳（30秒采集一次，5分钟上传一次）
-        do {
-            try await locationManager.startLocationCollection(userId: userId)
-            print("✅ [ContentView] 位置心跳已启动，用户: \(userId)")
-        } catch {
-            print("❌ [ContentView] 位置心跳启动失败: \(error)")
-        }
+        // 启动位置更新
+        try? await locationManager.startLocationUpdates()
+
+        // 等待获取位置
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        // 启动位置追踪器
+        locationTracker.startTracking()
+        print("✅ [ContentView] 位置追踪已启动")
     }
 
     // MARK: - 主界面 TabView
