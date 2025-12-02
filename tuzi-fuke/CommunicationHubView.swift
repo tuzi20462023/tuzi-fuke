@@ -3,15 +3,15 @@
 //  tuzi-fuke
 //
 //  通讯终端主界面
-//  集成消息、频道、设备管理三大模块
+//  集成消息、频道、私聊、设备管理四大模块
 //
 
 import SwiftUI
 
 struct CommunicationHubView: View {
-    // 0: 消息, 1: 频道, 2: 设备
+    // 0: 广播, 1: 频道, 2: 私聊, 3: 设备
     @State private var selectedTab: Int = 0
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -22,17 +22,20 @@ struct CommunicationHubView: View {
                     .background(Color(.systemBackground))
                     .shadow(color: .black.opacity(0.05), radius: 2, y: 2)
                     .zIndex(1) // 确保阴影在内容之上
-                
+
                 // 2. 内容区域
                 TabView(selection: $selectedTab) {
                     CommsMessageView()
                         .tag(0)
-                    
+
                     CommsChannelView()
                         .tag(1)
-                    
-                    CommsDeviceView()
+
+                    ConversationListView()
                         .tag(2)
+
+                    CommsDeviceView()
+                        .tag(3)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.2), value: selectedTab)
@@ -60,26 +63,27 @@ struct CommunicationHubView: View {
 
 struct CustomSegmentedControl: View {
     @Binding var selectedTab: Int
-    
+
     private let tabs = [
-        (icon: "message.fill", title: "讯息"),
+        (icon: "antenna.radiowaves.left.and.right", title: "广播"),
         (icon: "list.bullet.rectangle.portrait.fill", title: "频道"),
+        (icon: "message.fill", title: "私聊"),
         (icon: "radio.fill", title: "设备")
     ]
-    
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ForEach(0..<tabs.count, id: \.self) { index in
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         selectedTab = index
                     }
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(systemName: tabs[index].icon)
-                            .font(.system(size: 14))
+                            .font(.system(size: 12))
                         Text(tabs[index].title)
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
