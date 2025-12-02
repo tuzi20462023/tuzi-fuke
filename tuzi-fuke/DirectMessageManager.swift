@@ -355,10 +355,63 @@ class DirectMessageManager: ObservableObject {
 
     /// 获取附近玩家
     private func fetchNearbyPlayersViaREST(userId: UUID, lat: Double, lon: Double, rangeKm: Double) async throws -> [NearbyPlayer] {
-        // 使用 RPC 函数获取附近玩家（需要数据库支持）
-        // 暂时返回空数组，等数据库函数创建后启用
-        print("💬 [DirectMessageManager] 附近玩家功能需要数据库RPC支持")
-        return []
+        // 调用 RPC 函数 get_nearby_players
+        let url = SupabaseConfig.supabaseURL
+            .appendingPathComponent("rest/v1/rpc/get_nearby_players")
+
+        let body: [String: Any] = [
+            "p_user_id": userId.uuidString,
+            "p_lat": lat,
+            "p_lon": lon,
+            "p_range_km": rangeKm
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: body)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = jsonData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(SupabaseConfig.supabaseAnonKey, forHTTPHeaderField: "apikey")
+
+        if let accessToken = try? await supabase.auth.session.accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ [DirectMessageManager] 无效响应")
+            return []
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
+            print("❌ [DirectMessageManager] RPC调用失败: \(httpResponse.statusCode) - \(errorBody)")
+            return []
+        }
+
+        // 解析响应 - 使用新的返回格式
+        struct NearbyPlayerResponse: Codable {
+            let user_id: UUID
+            let callsign: String?
+            let device_type: String?
+            let distance_km: Double
+            let is_online: Bool
+        }
+
+        let players = try JSONDecoder().decode([NearbyPlayerResponse].self, from: data)
+
+        return players.map { response in
+            NearbyPlayer(
+                id: response.user_id,
+                username: response.callsign ?? "幸存者",
+                callsign: response.callsign,
+                distanceKm: response.distance_km,
+                lastSeenAt: response.is_online ? Date() : nil
+            )
+        }
     }
 
     /// 标记消息为已读

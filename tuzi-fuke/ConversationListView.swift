@@ -11,6 +11,7 @@ struct ConversationListView: View {
     @StateObject private var messageManager = DirectMessageManager.shared
     @StateObject private var deviceManager = DeviceManager.shared
     @State private var showNearbyPlayers = false
+    @State private var selectedConversation: ConversationUser?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,22 +27,18 @@ struct ConversationListView: View {
                 conversationList
             }
         }
-        .navigationTitle("私聊")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showNearbyPlayers = true
-                } label: {
-                    Image(systemName: "person.badge.plus")
-                }
-            }
-        }
         .task {
+            await deviceManager.loadDevices()
             await messageManager.loadConversations()
         }
         .sheet(isPresented: $showNearbyPlayers) {
             NearbyPlayersView()
+        }
+        .sheet(item: $selectedConversation) { conversation in
+            DirectChatView(
+                recipientId: conversation.id,
+                recipientName: conversation.displayName
+            )
         }
     }
 
@@ -65,6 +62,33 @@ struct ConversationListView: View {
                     }
 
                     Spacer()
+
+                    // 添加附近幸存者按钮
+                    Button {
+                        showNearbyPlayers = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray6))
+            } else {
+                // 没有设备时也显示按钮
+                HStack {
+                    Text("无通讯设备")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    Button {
+                        showNearbyPlayers = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundColor(.blue)
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
@@ -78,14 +102,12 @@ struct ConversationListView: View {
     private var conversationList: some View {
         List {
             ForEach(messageManager.conversations) { conversation in
-                NavigationLink {
-                    DirectChatView(
-                        recipientId: conversation.id,
-                        recipientName: conversation.displayName
-                    )
+                Button {
+                    selectedConversation = conversation
                 } label: {
                     ConversationRow(conversation: conversation)
                 }
+                .buttonStyle(.plain)
             }
         }
         .listStyle(.plain)
@@ -252,16 +274,15 @@ struct NearbyPlayersView: View {
                 }
             }
             .task {
+                await deviceManager.loadDevices()
                 await messageManager.loadNearbyPlayers()
             }
         }
         .sheet(item: $selectedPlayer) { player in
-            NavigationView {
-                DirectChatView(
-                    recipientId: player.id,
-                    recipientName: player.displayName
-                )
-            }
+            DirectChatView(
+                recipientId: player.id,
+                recipientName: player.displayName
+            )
         }
     }
 
