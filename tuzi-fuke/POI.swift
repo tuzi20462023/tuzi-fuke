@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreLocation
+import MapKit
 
 // MARK: - POI 类型
 
@@ -173,7 +174,6 @@ struct POI: Identifiable, Codable, Equatable {
     }
 }
 
-import MapKit
 
 // MARK: - MKMapItem 扩展
 
