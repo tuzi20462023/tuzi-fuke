@@ -242,3 +242,26 @@ extension MKMapItem {
         return .other
     }
 }
+
+// MARK: - POI 地图标注
+
+class POIAnnotation: NSObject, MKAnnotation {
+    let poi: POI
+
+    var coordinate: CLLocationCoordinate2D {
+        poi.coordinate
+    }
+
+    var title: String? {
+        poi.name
+    }
+
+    var subtitle: String? {
+        "\(poi.type.displayName) · 资源: \(poi.remainingItems)/\(poi.totalItems)"
+    }
+
+    init(poi: POI) {
+        self.poi = poi
+        super.init()
+    }
+}
