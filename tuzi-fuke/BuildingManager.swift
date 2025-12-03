@@ -504,4 +504,84 @@ class BuildingManager: ObservableObject {
             ($0.status == .active || $0.status == .constructing)
         }.count
     }
+
+    // MARK: - 建筑拆除
+
+    /// 拆除建筑
+    /// - Parameters:
+    ///   - buildingId: 建筑ID
+    ///   - userId: 用户ID
+    /// - Returns: 拆除结果
+    func demolishBuilding(buildingId: UUID, userId: UUID) async -> BuildingDemolitionResult {
+        print("🗑️ [BuildingManager] 开始拆除建筑: \(buildingId)")
+
+        // 查找建筑
+        guard let building = playerBuildings.first(where: { $0.id == buildingId }) else {
+            return BuildingDemolitionResult(
+                success: false,
+                message: "建筑不存在",
+                refundedResources: [:]
+            )
+        }
+
+        // 查找建筑模板
+        guard let template = buildingTemplates.first(where: {
+            $0.templateId == building.buildingTemplateKey
+        }) else {
+            return BuildingDemolitionResult(
+                success: false,
+                message: "建筑模板不存在",
+                refundedResources: [:]
+            )
+        }
+
+        // 计算返还资源（30% 建造成本）
+        var refundedResources: [String: Int] = [:]
+        for (resource, amount) in template.requiredResources {
+            let refundAmount = Int(Double(amount) * 0.3)
+            if refundAmount > 0 {
+                refundedResources[resource] = refundAmount
+            }
+        }
+
+        // 注意：当前项目暂无背包系统，跳过资源返还到背包的逻辑
+        // 未来可在此处添加 ItemManager 的资源返还逻辑
+        print("📦 [BuildingManager] 计算返还资源: \(refundedResources) (暂无背包系统，仅记录)")
+
+        // 删除建筑记录
+        do {
+            try await supabase.client.database
+                .from("player_buildings")
+                .delete()
+                .eq("id", value: buildingId.uuidString)
+                .execute()
+
+            print("✅ [BuildingManager] 拆除建筑成功: \(building.buildingName)")
+
+            // 从本地列表移除
+            playerBuildings.removeAll { $0.id == buildingId }
+
+            return BuildingDemolitionResult(
+                success: true,
+                message: "建筑已拆除",
+                refundedResources: refundedResources
+            )
+        } catch {
+            print("❌ [BuildingManager] 拆除失败: \(error)")
+            return BuildingDemolitionResult(
+                success: false,
+                message: "拆除失败: \(error.localizedDescription)",
+                refundedResources: [:]
+            )
+        }
+    }
+}
+
+// MARK: - 建筑拆除结果
+
+/// 建筑拆除操作的结果
+struct BuildingDemolitionResult {
+    let success: Bool
+    let message: String
+    let refundedResources: [String: Int]
 }
