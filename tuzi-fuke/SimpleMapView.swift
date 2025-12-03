@@ -9,7 +9,8 @@ struct SimpleMapView: View {
     @ObservedObject var locationManager: LocationManager
     @ObservedObject var territoryManager: TerritoryManager
     @ObservedObject var authManager: AuthManager
-    @ObservedObject var poiManager: POIManager = POIManager.shared
+    @ObservedObject var explorationManager: ExplorationManager
+    @StateObject private var poiManager = POIManager.shared
 
     // MARK: - 回调
     var switchToDebugTab: (() -> Void)?
@@ -19,6 +20,9 @@ struct SimpleMapView: View {
     @State private var showLoginAlert = false
     @State private var showCollisionAlert = false
     @State private var collisionAlertMessage = ""
+    @State private var showPOIFilter = false
+    @State private var showExplorationResult = false
+    @State private var explorationResult: ExplorationResult?
 
     // MARK: - 建筑系统状态
     @State private var showTerritoryPicker = false
@@ -47,23 +51,18 @@ struct SimpleMapView: View {
                 locationManager: locationManager,
                 territoryManager: territoryManager,
                 buildingManager: buildingManager,
+                poiManager: poiManager,
                 shouldCenterOnUser: $shouldCenterOnUser
             )
             .ignoresSafeArea(edges: .bottom) // 只忽略底部，保留顶部导航栏空间
 
-            // 控制按钮层
+            // 控制按钮层（底部三按钮布局：圈地 - 定位 - 探索）
             VStack {
                 Spacer()
 
+                // 右侧工具按钮（POI筛选 + 建筑）
                 HStack {
-                    // 行走圈地按钮（左下角）
-                    walkingClaimButton
-                        .padding(.leading, 16)
-                        .padding(.bottom, 100)
-
                     Spacer()
-
-                    // 右侧按钮组
                     VStack(spacing: 12) {
                         // 建筑按钮
                         Button(action: {
@@ -84,31 +83,72 @@ struct SimpleMapView: View {
                                 showLoginAlert = true
                             }
                         }) {
-                            Image(systemName: "building.2.fill")
+                            Image(systemName: "hammer.fill")
                                 .font(.title2)
                                 .foregroundColor(.white)
-                                .frame(width: 50, height: 50)
+                                .frame(width: 44, height: 44)
                                 .background(Color.orange)
                                 .clipShape(Circle())
                                 .shadow(radius: 4)
                         }
 
-                        // 定位按钮
+                        // POI 筛选按钮
                         Button(action: {
-                            shouldCenterOnUser = true
+                            showPOIFilter.toggle()
                         }) {
-                            Image(systemName: "location.fill")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                                .frame(width: 50, height: 50)
-                                .background(Color.blue)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
+                            ZStack {
+                                Image(systemName: "building.2.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(poiManager.filteredPOIs.isEmpty ? Color.gray : Color.purple)
+                                    .clipShape(Circle())
+                                    .shadow(radius: 4)
+
+                                // POI 数量角标
+                                if !poiManager.filteredPOIs.isEmpty {
+                                    Text("\(poiManager.filteredPOIs.count)")
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                        .padding(4)
+                                        .background(Color.red)
+                                        .clipShape(Circle())
+                                        .offset(x: 16, y: -16)
+                                }
+                            }
                         }
                     }
                     .padding(.trailing, 16)
-                    .padding(.bottom, 100)
                 }
+                .padding(.bottom, 8)
+
+                // 底部三按钮：圈地 - 定位 - 探索
+                HStack(spacing: 20) {
+                    // 圈地按钮（左）
+                    walkingClaimButton
+                        .disabled(explorationManager.isExploring)
+                        .opacity(explorationManager.isExploring ? 0.5 : 1.0)
+
+                    // 定位按钮（中心，黄色圆形）
+                    Button(action: {
+                        shouldCenterOnUser = true
+                    }) {
+                        Image(systemName: "location.fill")
+                            .font(.title)
+                            .foregroundColor(.black)
+                            .frame(width: 60, height: 60)
+                            .background(Color.yellow)
+                            .clipShape(Circle())
+                            .shadow(radius: 4)
+                    }
+
+                    // 探索按钮（右）
+                    explorationButton
+                        .disabled(locationManager.isTracking)
+                        .opacity(locationManager.isTracking ? 0.5 : 1.0)
+                }
+                .padding(.bottom, 100)
             }
 
             // 状态信息层
@@ -139,6 +179,13 @@ struct SimpleMapView: View {
                                 .font(.caption)
                                 .foregroundColor(.orange)
                         }
+
+                        // 附近 POI
+                        if !poiManager.filteredPOIs.isEmpty {
+                            Text("附近POI: \(poiManager.filteredPOIs.count) 个")
+                                .font(.caption)
+                                .foregroundColor(.purple)
+                        }
                     }
                     .padding(8)
                     .background(Color.black.opacity(0.6))
@@ -162,7 +209,7 @@ struct SimpleMapView: View {
                 Spacer()
 
                 // 提示信息
-                if !locationManager.isTracking && territoryManager.territories.isEmpty {
+                if !locationManager.isTracking && territoryManager.territories.isEmpty && !explorationManager.isExploring {
                     Text("点击左下角按钮开始行走圈地")
                         .font(.subheadline)
                         .foregroundColor(.white)
@@ -176,6 +223,12 @@ struct SimpleMapView: View {
                 // 行走圈地状态信息
                 if locationManager.isTracking {
                     trackingStatusOverlay
+                        .padding(.bottom, 160)
+                }
+
+                // 探索状态信息
+                if explorationManager.isExploring {
+                    explorationStatusOverlay
                         .padding(.bottom, 160)
                 }
             }
@@ -223,6 +276,17 @@ struct SimpleMapView: View {
                 TerritoryBuildingsView(territory: territory)
             }
         }
+        .sheet(isPresented: $showPOIFilter) {
+            POIFilterSheet(poiManager: poiManager)
+        }
+        .sheet(isPresented: $showExplorationResult) {
+            if let result = explorationResult {
+                ExplorationResultSheet(result: result) {
+                    showExplorationResult = false
+                    explorationResult = nil
+                }
+            }
+        }
         .onAppear {
             // 请求定位权限并开始更新
             locationManager.requestLocationPermission()
@@ -233,7 +297,7 @@ struct SimpleMapView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     shouldCenterOnUser = true
 
-                    // 查询领地数据（优先，不阻塞）
+                    // 查询领地数据和 POI 数据
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
@@ -268,6 +332,13 @@ struct SimpleMapView: View {
                 startPOIMonitoring()
             } else {
                 stopCollisionMonitoring()
+                stopPOIMonitoring()
+            }
+        }
+        .onChange(of: explorationManager.isExploring) { _, isExploring in
+            if isExploring {
+                startPOIMonitoring()
+            } else {
                 stopPOIMonitoring()
             }
         }
@@ -935,6 +1006,139 @@ struct SimpleMapView: View {
         .transition(.scale.combined(with: .opacity))
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: poiManager.showDiscoveryAlert)
     }
+
+    // MARK: - 探索按钮
+
+    private var explorationButton: some View {
+        Button(action: {
+            if explorationManager.isExploring {
+                // 结束探索
+                Task {
+                    let result = await explorationManager.endExploration(
+                        endLocation: locationManager.currentLocation
+                    )
+                    if let result = result {
+                        explorationResult = result
+                        showExplorationResult = true
+                    }
+                }
+            } else {
+                // 开始探索
+                guard let userId = authManager.currentUser?.id else {
+                    showLoginAlert = true
+                    return
+                }
+
+                Task {
+                    let success = await explorationManager.startExploration(
+                        userId: userId,
+                        startLocation: locationManager.currentLocation
+                    )
+                    if success {
+                        // 开始追踪位置
+                        startExplorationTracking()
+                    }
+                }
+            }
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: explorationManager.isExploring ? "stop.fill" : "magnifyingglass")
+                    .font(.title3)
+                Text(explorationManager.isExploring ? "结束" : "探索")
+                    .font(.headline)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(explorationManager.isExploring ? Color.red : Color.green)
+            .cornerRadius(25)
+            .shadow(radius: 4)
+        }
+    }
+
+    // MARK: - 探索状态卡片
+
+    private var explorationStatusOverlay: some View {
+        VStack(spacing: 8) {
+            // 标题
+            HStack {
+                Image(systemName: "figure.walk")
+                    .foregroundColor(.green)
+                Text("探索中...")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                // 时长
+                Text(explorationManager.durationDisplay)
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundColor(.green)
+            }
+
+            Divider().background(Color.white.opacity(0.3))
+
+            // 统计数据
+            HStack(spacing: 16) {
+                VStack {
+                    Text(explorationManager.distanceDisplay)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
+                    Text("距离")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                VStack {
+                    Text(explorationManager.areaDisplay)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                    Text("面积")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                VStack {
+                    Text(explorationManager.caloriesDisplay)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.orange)
+                    Text("热量")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                VStack {
+                    Text("\(explorationManager.currentGridCount)")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.purple)
+                    Text("网格")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.85))
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - 探索位置追踪
+
+    private func startExplorationTracking() {
+        Task { @MainActor in
+            while explorationManager.isExploring {
+                if let location = locationManager.currentLocation {
+                    explorationManager.trackLocation(location)
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2秒
+            }
+        }
+    }
 }
 
 // MARK: - Preview
@@ -944,6 +1148,6 @@ struct SimpleMapView: View {
         locationManager: LocationManager.shared,
         territoryManager: TerritoryManager.shared,
         authManager: AuthManager.shared,
-        switchToDebugTab: {}
+        explorationManager: ExplorationManager.shared
     )
 }

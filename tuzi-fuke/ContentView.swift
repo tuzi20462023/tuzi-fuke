@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab = 0
     @StateObject private var territoryManager = TerritoryManager.shared
+    @StateObject private var explorationManager = ExplorationManager.shared
     @ObservedObject private var authManager = AuthManager.shared
     @StateObject private var locationTracker = LocationTrackerManager.shared
 
@@ -62,12 +63,13 @@ struct ContentView: View {
 
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
-            // Tab 1: 地图（主界面）
+            // Tab 1: 地图（主界面，包含圈地和探索）
             NavigationView {
                 SimpleMapView(
                     locationManager: LocationManager.shared,
                     territoryManager: territoryManager,
                     authManager: authManager,
+                    explorationManager: explorationManager,
                     switchToDebugTab: { selectedTab = 2 }
                 )
                 .navigationTitle(authManager.currentUser?.email ?? "地图")

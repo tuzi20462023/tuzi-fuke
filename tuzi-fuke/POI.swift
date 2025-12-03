@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreLocation
+import MapKit
 
 // MARK: - POI 类型
 
@@ -54,6 +55,23 @@ enum POIType: String, CaseIterable, Codable {
         case .bank: return "banknote.fill"
         case .pharmacy: return "pills.fill"
         case .other: return "mappin.circle.fill"
+        }
+    }
+
+    /// 颜色（十六进制）
+    var color: String {
+        switch self {
+        case .supermarket: return "#44AA44"      // 绿色
+        case .restaurant: return "#FF8800"       // 橙色
+        case .hospital: return "#FF4444"         // 红色
+        case .school: return "#AA44AA"           // 紫色
+        case .park: return "#44AAAA"             // 青色
+        case .gasStation: return "#4444FF"       // 蓝色
+        case .factory: return "#888888"          // 灰色
+        case .convenienceStore: return "#66BB66" // 浅绿
+        case .bank: return "#FFD700"             // 金色
+        case .pharmacy: return "#FF6B6B"         // 浅红
+        case .other: return "#666666"            // 深灰
         }
     }
 
@@ -156,8 +174,6 @@ struct POI: Identifiable, Codable, Equatable {
     }
 }
 
-import MapKit
-
 // MARK: - MKMapItem 扩展
 
 extension MKMapItem {
@@ -223,5 +239,28 @@ extension MKMapItem {
         }
 
         return .other
+    }
+}
+
+// MARK: - POI 地图标注
+
+class POIAnnotation: NSObject, MKAnnotation {
+    let poi: POI
+
+    var coordinate: CLLocationCoordinate2D {
+        poi.coordinate
+    }
+
+    var title: String? {
+        poi.name
+    }
+
+    var subtitle: String? {
+        "\(poi.type.displayName) · 资源: \(poi.remainingItems)/\(poi.totalItems)"
+    }
+
+    init(poi: POI) {
+        self.poi = poi
+        super.init()
     }
 }

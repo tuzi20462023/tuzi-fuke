@@ -8,6 +8,7 @@ struct MapViewRepresentable: UIViewRepresentable {
     @ObservedObject var locationManager: LocationManager
     @ObservedObject var territoryManager: TerritoryManager
     @ObservedObject var buildingManager: BuildingManager
+    @ObservedObject var poiManager: POIManager
     @Binding var shouldCenterOnUser: Bool
 
     // MARK: - UIViewRepresentable
@@ -108,6 +109,13 @@ struct MapViewRepresentable: UIViewRepresentable {
             buildings: buildingManager.playerBuildings,
             templates: buildingManager.buildingTemplates
         )
+
+        // 更新 POI 标注
+        context.coordinator.updatePOIAnnotations(
+            on: mapView,
+            pois: poiManager.filteredPOIs,
+            discoveredPOIs: poiManager.discoveredPOIIds
+        )
     }
 
     func makeCoordinator() -> Coordinator {
@@ -132,6 +140,9 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         // 建筑标记
         private var buildingAnnotations: [UUID: BuildingMapAnnotation] = [:]
+
+        // POI 标注
+        private var poiAnnotations: [UUID: POIAnnotation] = [:]
 
         // MARK: - 长按手势处理
 
@@ -382,6 +393,31 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
         }
 
+        // MARK: - POI 标注更新
+
+        func updatePOIAnnotations(on mapView: MKMapView, pois: [POI], discoveredPOIs: Set<UUID>) {
+            // 找出需要添加和删除的 POI
+            let currentIds = Set(poiAnnotations.keys)
+            let newIds = Set(pois.map { $0.id })
+
+            // 删除不存在的
+            let toRemove = currentIds.subtracting(newIds)
+            for id in toRemove {
+                if let annotation = poiAnnotations[id] {
+                    mapView.removeAnnotation(annotation)
+                    poiAnnotations.removeValue(forKey: id)
+                }
+            }
+
+            // 添加新的
+            let toAdd = newIds.subtracting(currentIds)
+            for poi in pois where toAdd.contains(poi.id) {
+                let annotation = POIAnnotation(poi: poi)
+                poiAnnotations[poi.id] = annotation
+                mapView.addAnnotation(annotation)
+            }
+        }
+
         // MARK: - MKMapViewDelegate
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -506,6 +542,34 @@ struct MapViewRepresentable: UIViewRepresentable {
                 return view
             }
 
+            // POI 标注
+            if let poiAnnotation = annotation as? POIAnnotation {
+                let identifier = "POIAnnotation"
+                var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
+
+                if annotationView == nil {
+                    annotationView = MKMarkerAnnotationView(annotation: poiAnnotation, reuseIdentifier: identifier)
+                    annotationView?.canShowCallout = true
+                } else {
+                    annotationView?.annotation = poiAnnotation
+                }
+
+                // 根据 POI 类型设置图标和颜色
+                let poi = poiAnnotation.poi
+                annotationView?.glyphImage = UIImage(systemName: poi.type.iconName)
+                annotationView?.markerTintColor = UIColor(hex: poi.type.color)
+
+                // 如果没有资源，显示为灰色
+                if !poi.hasResources {
+                    annotationView?.markerTintColor = UIColor.systemGray
+                    annotationView?.alpha = 0.6
+                } else {
+                    annotationView?.alpha = 1.0
+                }
+
+                return annotationView
+            }
+
             // 路径点标记使用小圆点
             let identifier = "PathPoint"
             var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
@@ -568,5 +632,23 @@ class BuildingMapAnnotation: NSObject, MKAnnotation {
         case .damaged: return "需要维修"
         case .inactive: return "已停用"
         }
+    }
+}
+
+// MARK: - UIColor 扩展
+
+extension UIColor {
+    convenience init(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        var rgb: UInt64 = 0
+        Scanner(string: hexSanitized).scanHexInt64(&rgb)
+
+        let red = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
+        let green = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
+        let blue = CGFloat(rgb & 0x0000FF) / 255.0
+
+        self.init(red: red, green: green, blue: blue, alpha: 1.0)
     }
 }
