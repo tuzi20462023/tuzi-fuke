@@ -1,0 +1,14 @@
+# 项目规则
+
+## 工作目录
+- 本对话专注于 `/Users/mikeliu/Desktop/tuzi-fuke-explore` 目录
+- 所有代码修改都在这个目录进行
+- 不要修改其他 tuzi-fuke 相关目录
+
+## 当前功能
+- 探索功能开发
+- POI发现系统
+
+## 注意事项
+- 修改前先确认文件路径是 tuzi-fuke-explore
+- 测试时用户运行的是这个项目

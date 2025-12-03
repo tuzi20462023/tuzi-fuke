@@ -82,12 +82,10 @@ class ChatManager: ObservableObject {
 
         // 使用 REST API 发送（避免 Swift 6 并发问题）
         try await messageUploader.upload(
-            MessageUploadData(
-                sender_id: userId.uuidString,
-                content: content,
-                message_type: MessageType.broadcast.rawValue,
-                sender_name: senderName
-            ),
+            senderId: userId.uuidString,
+            content: content,
+            messageType: MessageType.broadcast.rawValue,
+            senderName: senderName,
             supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
             anonKey: SupabaseConfig.supabaseAnonKey,
             accessToken: try? await supabase.auth.session.accessToken
@@ -268,16 +266,8 @@ enum ChatError: LocalizedError {
 
 // MARK: - 消息上传器（Actor，解决 Swift 6 并发问题）
 
-/// 消息上传数据结构
-struct MessageUploadData: Encodable, Sendable {
-    let sender_id: String
-    let content: String
-    let message_type: String
-    let sender_name: String?
-}
-
 /// 消息上传错误
-enum MessageUploadError: Error, LocalizedError {
+enum MessageUploadError: Error, LocalizedError, Sendable {
     case encodingFailed
     case networkError(Error)
     case serverError(Int, String)
@@ -297,11 +287,35 @@ enum MessageUploadError: Error, LocalizedError {
 /// 消息上传器 - 使用原生 URLSession 直接调用 REST API
 actor MessageUploader {
 
-    func upload(_ data: MessageUploadData, supabaseUrl: String, anonKey: String, accessToken: String?) async throws {
+    /// 上传消息，接收基础类型参数避免 MainActor 隔离问题
+    func upload(
+        senderId: String,
+        content: String,
+        messageType: String,
+        senderName: String?,
+        supabaseUrl: String,
+        anonKey: String,
+        accessToken: String?
+    ) async throws {
         let urlString = "\(supabaseUrl)/rest/v1/messages"
         guard let url = URL(string: urlString) else {
             throw MessageUploadError.encodingFailed
         }
+
+        // 在 actor 内部定义结构体，避免 MainActor 隔离问题
+        struct MessageUploadData: Encodable, Sendable {
+            let sender_id: String
+            let content: String
+            let message_type: String
+            let sender_name: String?
+        }
+
+        let data = MessageUploadData(
+            sender_id: senderId,
+            content: content,
+            message_type: messageType,
+            sender_name: senderName
+        )
 
         let encoder = JSONEncoder()
         let jsonData = try encoder.encode(data)

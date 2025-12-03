@@ -2,8 +2,8 @@
 //  POIManager.swift
 //  tuzi-fuke
 //
-//  POI 管理器 - 负责 POI 搜索、缓存、发现
-//  参考源项目 tuzi-earthlord 的架构
+//  POI 管理器 - 纯查询模式，使用 PostGIS RPC 函数
+//  POI 数据由后端 Edge Function 生成，客户端只负责查询和发现
 //
 
 import Foundation
@@ -27,7 +27,7 @@ struct POIDatabaseModel: Decodable, Sendable {
     let remaining_items: Int?
 }
 
-/// POI 候选数据库模型
+/// POI 候选数据库模型（用于 MapKit 搜索提交）
 struct POICandidateModel: Decodable, Sendable {
     let id: UUID
     let name: String
@@ -37,13 +37,22 @@ struct POICandidateModel: Decodable, Sendable {
     let longitude: Double
 }
 
-// MARK: - 数据库操作辅助
-// 注意：参考 PositionRepository 的实现方式
-// 在 Task.detached 中定义本地 Encodable 结构体，避免 MainActor 隔离问题
+/// RPC 返回的 POI 模型
+struct RPCPOIModel: Decodable, Sendable {
+    let id: UUID
+    let name: String
+    let type: String
+    let description: String?
+    let latitude: Double
+    let longitude: Double
+    let total_items: Int?
+    let remaining_items: Int?
+    let distance_meters: Double?
+}
 
 // MARK: - POI 搜索配置
 
-/// POI 搜索关键词配置
+/// POI 搜索关键词配置（用于 MapKit 搜索提交候选）
 private struct POISearchConfig {
     let type: POIType
     let keywords: [String]
@@ -117,35 +126,36 @@ class POIManager: ObservableObject {
 
     // MARK: - 公开方法
 
-    /// 首次定位成功时调用：搜索 MapKit 并提交候选
-    /// 这是核心入口，只在定位成功时调用一次
+    /// 首次定位成功时调用
+    /// 使用 PostGIS RPC 查询附近 POI，同时异步提交 MapKit 候选给后端处理
     func onLocationReady(location: CLLocation, userId: UUID) async {
-        // 避免重复提交
+        // 避免重复初始化
         guard !hasSubmittedCandidates else {
-            appLog(.debug, category: "POI", message: "已提交过候选，跳过")
+            appLog(.debug, category: "POI", message: "已初始化过，跳过")
             return
         }
 
-        appLog(.info, category: "POI", message: "📍 首次定位成功，开始搜索附近 POI...")
+        appLog(.info, category: "POI", message: "📍 首次定位成功，使用 PostGIS 查询附近 POI...")
         appLog(.info, category: "POI", message: "   位置: (\(String(format: "%.6f", location.coordinate.latitude)), \(String(format: "%.6f", location.coordinate.longitude)))")
 
         isLoading = true
 
-        // 步骤1: 搜索 MapKit 并提交候选到数据库
-        let candidateCount = await searchAndSubmitCandidates(location: location, userId: userId)
-        appLog(.info, category: "POI", message: "✅ 已提交 \(candidateCount) 个 POI 候选")
+        // 步骤1: 使用 PostGIS RPC 查询附近 POI（核心查询）
+        await updatePOICacheWithRPC(location: location)
 
-        // 步骤2: 从候选表创建 POI
-        await generatePOIFromCandidates(location: location, userId: userId)
-
-        // 步骤3: 加载用户已发现的 POI
+        // 步骤2: 加载用户已发现的 POI
         await loadDiscoveredPOIs(userId: userId)
 
-        // 步骤4: 更新 POI 缓存
-        await updatePOICache(location: location)
-
-        // 步骤5: 预先标记当前已在 100 米范围内的 POI（防止首次探索立即弹窗）
+        // 步骤3: 预先标记当前已在 100 米范围内的 POI（防止首次探索立即弹窗）
         markNearbyPOIsAsTriggered(location: location)
+
+        // 步骤4: 异步提交 MapKit 候选给后端（不阻塞主流程）
+        Task {
+            let candidateCount = await searchAndSubmitCandidates(location: location, userId: userId)
+            if candidateCount > 0 {
+                appLog(.info, category: "POI", message: "✅ 已提交 \(candidateCount) 个 POI 候选到后端处理")
+            }
+        }
 
         hasSubmittedCandidates = true
         isLoading = false
@@ -179,34 +189,81 @@ class POIManager: ObservableObject {
 
     /// 搜索附近 POI（兼容方法，SimpleMapView 使用）
     func searchNearbyPOIs(location: CLLocation) async {
-        await updatePOICache(location: location)
+        await updatePOICacheWithRPC(location: location)
     }
 
-    /// 更新 POI 缓存（从数据库加载附近 POI）
-    func updatePOICache(location: CLLocation) async {
-        // 检查是否需要更新（移动超过 500 米才更新）
+    /// 使用 PostGIS RPC 更新 POI 缓存（核心查询方法）
+    func updatePOICacheWithRPC(location: CLLocation) async {
+        // 检查是否需要更新（移动超过 300 米才更新）
         if let lastLocation = lastCacheUpdateLocation {
             let distance = location.distance(from: lastLocation)
-            if distance < 500 && !cachedPOIs.isEmpty {
-                appLog(.debug, category: "POI", message: "距离上次缓存更新不足 500 米，使用缓存")
+            if distance < 300 && !cachedPOIs.isEmpty {
+                appLog(.debug, category: "POI", message: "距离上次缓存更新不足 300 米，使用缓存")
                 return
             }
         }
 
-        appLog(.info, category: "POI", message: "📦 更新 POI 缓存...")
+        appLog(.info, category: "POI", message: "📦 使用 PostGIS RPC 查询附近 POI...")
+
+        // 将 GPS 坐标转换为 GCJ-02（数据库中的坐标是 GCJ-02）
+        let gcjCoord = CoordinateConverter.wgs84ToGcj02(location.coordinate)
+
+        do {
+            // 使用 RPC 调用 PostGIS 函数
+            let response = try await supabase.database
+                .rpc("get_pois_within_radius", params: [
+                    "p_lat": gcjCoord.latitude,
+                    "p_lon": gcjCoord.longitude,
+                    "p_radius_km": cacheRadius / 1000.0  // 转换为公里
+                ])
+                .execute()
+
+            let decoder = JSONDecoder()
+            let rpcPOIs = try decoder.decode([RPCPOIModel].self, from: response.data)
+
+            // 转换为 POI 模型
+            cachedPOIs = rpcPOIs.map { rpcPOI in
+                POI(
+                    id: rpcPOI.id,
+                    name: rpcPOI.name,
+                    type: POIType(rawValue: rpcPOI.type) ?? .other,
+                    latitude: rpcPOI.latitude,
+                    longitude: rpcPOI.longitude,
+                    totalItems: rpcPOI.total_items ?? 100,
+                    remainingItems: rpcPOI.remaining_items ?? 100,
+                    createdAt: nil
+                )
+            }
+
+            lastCacheUpdateLocation = location
+            appLog(.success, category: "POI", message: "✅ PostGIS 查询完成，共 \(cachedPOIs.count) 个 POI")
+
+        } catch {
+            appLog(.error, category: "POI", message: "❌ PostGIS 查询失败: \(error.localizedDescription)")
+            // 降级到普通查询
+            await updatePOICacheFallback(location: location)
+        }
+    }
+
+    /// 降级的普通查询（当 RPC 失败时使用）
+    private func updatePOICacheFallback(location: CLLocation) async {
+        appLog(.warning, category: "POI", message: "⚠️ 降级到普通边界框查询...")
+
+        // 将 GPS 坐标转换为 GCJ-02
+        let gcjCoord = CoordinateConverter.wgs84ToGcj02(location.coordinate)
 
         do {
             // 计算边界框
             let latDelta = cacheRadius / 111000.0
-            let lonDelta = cacheRadius / (111000.0 * cos(location.coordinate.latitude * .pi / 180))
+            let lonDelta = cacheRadius / (111000.0 * cos(gcjCoord.latitude * .pi / 180))
 
             let response = try await supabase.database
                 .from("pois")
                 .select()
-                .gte("latitude", value: location.coordinate.latitude - latDelta)
-                .lte("latitude", value: location.coordinate.latitude + latDelta)
-                .gte("longitude", value: location.coordinate.longitude - lonDelta)
-                .lte("longitude", value: location.coordinate.longitude + lonDelta)
+                .gte("latitude", value: gcjCoord.latitude - latDelta)
+                .lte("latitude", value: gcjCoord.latitude + latDelta)
+                .gte("longitude", value: gcjCoord.longitude - lonDelta)
+                .lte("longitude", value: gcjCoord.longitude + lonDelta)
                 .eq("is_active", value: true)
                 .execute()
 
@@ -228,11 +285,16 @@ class POIManager: ObservableObject {
             }
 
             lastCacheUpdateLocation = location
-            appLog(.success, category: "POI", message: "✅ 缓存更新完成，共 \(cachedPOIs.count) 个 POI")
+            appLog(.success, category: "POI", message: "✅ 降级查询完成，共 \(cachedPOIs.count) 个 POI")
 
         } catch {
-            appLog(.error, category: "POI", message: "❌ 更新缓存失败: \(error.localizedDescription)")
+            appLog(.error, category: "POI", message: "❌ 降级查询也失败: \(error.localizedDescription)")
         }
+    }
+
+    /// 更新 POI 缓存（兼容方法）
+    func updatePOICache(location: CLLocation) async {
+        await updatePOICacheWithRPC(location: location)
     }
 
     /// 检查附近 POI（探索时每次位置更新调用）
@@ -525,140 +587,8 @@ class POIManager: ObservableObject {
         }
     }
 
-    /// 从候选表创建 POI（简化版，无需边缘函数）
-    private func generatePOIFromCandidates(location: CLLocation, userId: UUID) async {
-        appLog(.info, category: "POI", message: "🏗️ 从候选表创建 POI...")
-
-        do {
-            // 获取最近提交的候选（最多10个未处理的）
-            let response = try await supabase.database
-                .from("mapkit_poi_candidates")
-                .select()
-                .eq("submitted_by", value: userId.uuidString)
-                .eq("processed", value: false)
-                .limit(10)
-                .execute()
-
-            let decoder = JSONDecoder()
-            let candidates = try decoder.decode([POICandidateModel].self, from: response.data)
-
-            appLog(.info, category: "POI", message: "   找到 \(candidates.count) 个未处理候选")
-
-            // 选择不同类型的候选创建 POI
-            var createdTypes: Set<String> = []
-            var createdCount = 0
-
-            for candidate in candidates {
-                // 每种类型最多创建1个
-                if createdTypes.contains(candidate.poi_type) {
-                    continue
-                }
-
-                // 创建 POI（使用 Task.detached 方式）
-                let success = await insertPOIToDatabase(
-                    name: candidate.name,
-                    type: candidate.poi_type,
-                    description: candidate.address ?? "MapKit 发现的地点",
-                    latitude: candidate.latitude,
-                    longitude: candidate.longitude
-                )
-
-                if success {
-                    createdTypes.insert(candidate.poi_type)
-                    createdCount += 1
-
-                    // 标记候选为已处理
-                    await updateCandidateProcessed(id: candidate.id.uuidString)
-                }
-
-                // 最多创建 5 个 POI
-                if createdCount >= 5 {
-                    break
-                }
-            }
-
-            appLog(.success, category: "POI", message: "✅ 成功创建 \(createdCount) 个 POI")
-        } catch {
-            appLog(.warning, category: "POI", message: "⚠️ 创建 POI 失败: \(error.localizedDescription)")
-        }
-    }
-
-    /// 插入 POI 到数据库
-    private func insertPOIToDatabase(name: String, type: String, description: String, latitude: Double, longitude: Double) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            Task.detached {
-                do {
-                    let supabase = await SupabaseManager.shared.client
-
-                    struct POIInsert: Encodable, Sendable {
-                        let name: String
-                        let type: String
-                        let description: String
-                        let latitude: Double
-                        let longitude: Double
-                        let is_active: Bool
-                        let total_items: Int
-                        let remaining_items: Int
-                    }
-
-                    let insertData = POIInsert(
-                        name: name,
-                        type: type,
-                        description: description,
-                        latitude: latitude,
-                        longitude: longitude,
-                        is_active: true,
-                        total_items: 100,
-                        remaining_items: 100
-                    )
-
-                    // 使用数组插入 + select，与 PositionRepository 保持一致
-                    try await supabase.database
-                        .from("pois")
-                        .insert([insertData])
-                        .select()
-                        .execute()
-
-                    continuation.resume(returning: true)
-                } catch {
-                    let errorType = String(describing: Swift.type(of: error))
-                    let fullError = String(describing: error)
-                    await MainActor.run {
-                        appLog(.error, category: "POI", message: "   ❌ [NEW] 插入 POI 失败: \(fullError)")
-                        appLog(.error, category: "POI", message: "   错误类型: \(errorType)")
-                    }
-                    continuation.resume(returning: false)
-                }
-            }
-        }
-    }
-
-    /// 更新候选为已处理
-    private func updateCandidateProcessed(id: String) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            Task.detached {
-                do {
-                    let supabase = await SupabaseManager.shared.client
-
-                    struct ProcessedUpdate: Encodable, Sendable {
-                        let processed: Bool
-                    }
-
-                    try await supabase.database
-                        .from("mapkit_poi_candidates")
-                        .update(ProcessedUpdate(processed: true))
-                        .eq("id", value: id)
-                        .execute()
-
-                } catch {
-                    await MainActor.run {
-                        appLog(.warning, category: "POI", message: "   ❌ 更新候选状态失败: \(error.localizedDescription)")
-                    }
-                }
-                continuation.resume()
-            }
-        }
-    }
+    // NOTE: POI 生成现在由后端 Edge Function (process-poi-candidates) 处理
+    // 客户端只负责提交候选和查询 POI
 
     /// 标记 POI 为已发现
     private func markPOIDiscovered(poi: POI, userId: UUID) async {

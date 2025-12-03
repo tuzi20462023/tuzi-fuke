@@ -102,12 +102,9 @@ struct MapViewRepresentable: UIViewRepresentable {
             isClosed: locationManager.isPathClosed
         )
 
-        // 更新 POI 标注
-        context.coordinator.updatePOIAnnotations(
-            on: mapView,
-            pois: poiManager.filteredPOIs,
-            discoveredPOIs: poiManager.discoveredPOIs
-        )
+        // POI 隐藏机制：不在主地图显示 POI 标注
+        // 玩家需要探索到 100 米范围内才会触发发现弹窗
+        // 参考源项目 EarthLord 的设计：未发现的 POI 不显示在地图上
     }
 
     func makeCoordinator() -> Coordinator {

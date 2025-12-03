@@ -169,8 +169,8 @@ struct SimpleMapView: View {
 
                 Spacer()
 
-                // 提示信息
-                if !locationManager.isTracking && territoryManager.territories.isEmpty {
+                // 提示信息（只在既没有圈地也没有探索时显示）
+                if !locationManager.isTracking && !explorationManager.isExploring && territoryManager.territories.isEmpty {
                     Text("点击左下角按钮开始行走圈地")
                         .font(.subheadline)
                         .foregroundColor(.white)
@@ -222,6 +222,15 @@ struct SimpleMapView: View {
         } message: {
             Text(collisionAlertMessage)
         }
+        .alert("发现POI!", isPresented: $poiManager.showDiscoveryAlert) {
+            Button("太棒了!", role: .cancel) {
+                poiManager.clearDiscoveryAlert()
+            }
+        } message: {
+            if let poi = poiManager.lastDiscoveredPOI {
+                Text("🎉 你发现了【\(poi.name)】\n类型: \(poi.type.displayName)\n可获得资源: \(poi.remainingItems)个")
+            }
+        }
         .sheet(isPresented: $showPOIFilter) {
             POIFilterSheet(poiManager: poiManager)
         }
@@ -243,11 +252,15 @@ struct SimpleMapView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     shouldCenterOnUser = true
 
-                    // 查询领地数据和 POI 数据
+                    // 查询领地数据
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
-                            await poiManager.loadNearbyPOIs(location: location, radius: 2000)
+
+                            // POI 初始化：搜索 MapKit 并提交候选
+                            if let userId = authManager.currentUser?.id {
+                                await poiManager.onLocationReady(location: location, userId: userId)
+                            }
                         }
                     }
                 }
@@ -780,6 +793,9 @@ struct SimpleMapView: View {
                 }
 
                 Task {
+                    // 重置探索状态
+                    poiManager.resetForNewExploration()
+
                     let success = await explorationManager.startExploration(
                         userId: userId,
                         startLocation: locationManager.currentLocation
@@ -880,13 +896,25 @@ struct SimpleMapView: View {
     // MARK: - 探索位置追踪
 
     private func startExplorationTracking() {
+        // 重置探索状态
+        poiManager.resetForNewExploration()
+
         Task { @MainActor in
+            appLog(.info, category: "探索追踪", message: "🚀 开始探索位置追踪")
+
             while explorationManager.isExploring {
-                if let location = locationManager.currentLocation {
+                if let location = locationManager.currentLocation,
+                   let userId = authManager.currentUser?.id {
+                    // 更新探索位置
                     explorationManager.trackLocation(location)
+
+                    // 检查附近 POI（自动发现）
+                    let _ = await poiManager.checkNearbyPOIs(location: location, userId: userId)
                 }
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2秒
             }
+
+            appLog(.info, category: "探索追踪", message: "🛑 停止探索位置追踪")
         }
     }
 }
