@@ -8,6 +8,7 @@ struct MapViewRepresentable: UIViewRepresentable {
     @ObservedObject var locationManager: LocationManager
     @ObservedObject var territoryManager: TerritoryManager
     @ObservedObject var poiManager: POIManager
+    @ObservedObject var buildingManager: BuildingManager
     @Binding var shouldCenterOnUser: Bool
 
     // MARK: - UIViewRepresentable
@@ -105,6 +106,13 @@ struct MapViewRepresentable: UIViewRepresentable {
         // POI 隐藏机制：不在主地图显示 POI 标注
         // 玩家需要探索到 100 米范围内才会触发发现弹窗
         // 参考源项目 EarthLord 的设计：未发现的 POI 不显示在地图上
+
+        // 更新建筑标记
+        context.coordinator.updateBuildings(
+            on: mapView,
+            buildings: buildingManager.playerBuildings,
+            templates: buildingManager.buildingTemplates
+        )
     }
 
     func makeCoordinator() -> Coordinator {
@@ -129,6 +137,9 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         // POI 标注
         private var poiAnnotations: [UUID: POIAnnotation] = [:]
+
+        // 建筑标记
+        private var buildingAnnotations: [UUID: BuildingMapAnnotation] = [:]
 
         // MARK: - 长按手势处理
 
@@ -350,6 +361,60 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
         }
 
+        // MARK: - 建筑标记更新
+
+        func updateBuildings(on mapView: MKMapView, buildings: [PlayerBuilding], templates: [BuildingTemplate]) {
+            // 创建模板字典方便查找
+            let templateDict = Dictionary(uniqueKeysWithValues: templates.map { ($0.templateId, $0) })
+
+            // 找出需要添加和删除的建筑
+            let currentIds = Set(buildingAnnotations.keys)
+            let newIds = Set(buildings.map { $0.id })
+
+            // 删除不存在的
+            let toRemove = currentIds.subtracting(newIds)
+            for id in toRemove {
+                if let annotation = buildingAnnotations[id] {
+                    mapView.removeAnnotation(annotation)
+                    buildingAnnotations.removeValue(forKey: id)
+                }
+            }
+
+            // 添加或更新建筑
+            for building in buildings {
+                // 获取建筑坐标
+                guard let location = building.location else { continue }
+
+                // 数据库存储的已经是 GCJ-02 坐标，直接使用，不需要转换
+                let gcj02Coord = CLLocationCoordinate2D(
+                    latitude: location.coordinates[1],
+                    longitude: location.coordinates[0]
+                )
+
+                // 获取建筑模板信息
+                let template = templateDict[building.buildingTemplateKey]
+                let icon = template?.icon ?? "building.2.fill"
+
+                if let existingAnnotation = buildingAnnotations[building.id] {
+                    // 更新现有标记的位置和状态
+                    existingAnnotation.coordinate = gcj02Coord
+                    existingAnnotation.status = building.status
+                } else {
+                    // 创建新标记
+                    let annotation = BuildingMapAnnotation(
+                        id: building.id,
+                        coordinate: gcj02Coord,
+                        name: building.buildingName,
+                        icon: icon,
+                        status: building.status
+                    )
+                    buildingAnnotations[building.id] = annotation
+                    mapView.addAnnotation(annotation)
+                    print("🏗️ [Coordinator] 添加建筑标记: \(building.buildingName) @ (\(gcj02Coord.latitude), \(gcj02Coord.longitude))")
+                }
+            }
+        }
+
         // MARK: - MKMapViewDelegate
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -474,6 +539,34 @@ struct MapViewRepresentable: UIViewRepresentable {
                 return annotationView
             }
 
+            // 建筑标记
+            if let buildingAnnotation = annotation as? BuildingMapAnnotation {
+                let identifier = "BuildingMapAnnotation"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+
+                if view == nil {
+                    view = MKAnnotationView(annotation: buildingAnnotation, reuseIdentifier: identifier)
+                    view?.canShowCallout = true
+                } else {
+                    view?.annotation = buildingAnnotation
+                }
+
+                // 创建建筑图标
+                let config = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
+                let color: UIColor = {
+                    switch buildingAnnotation.status {
+                    case .constructing: return .systemBlue
+                    case .active: return .systemGreen
+                    case .damaged: return .systemOrange
+                    case .inactive: return .systemGray
+                    }
+                }()
+                view?.image = UIImage(systemName: buildingAnnotation.icon, withConfiguration: config)?
+                    .withTintColor(color, renderingMode: .alwaysOriginal)
+
+                return view
+            }
+
             // 路径点标记使用小圆点
             let identifier = "PathPoint"
             var annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
@@ -505,6 +598,36 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
 
             return annotationView
+        }
+    }
+}
+
+// MARK: - 建筑地图标注
+
+class BuildingMapAnnotation: NSObject, MKAnnotation {
+    let id: UUID
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    let name: String
+    let icon: String
+    var status: PlayerBuildingStatus
+
+    init(id: UUID, coordinate: CLLocationCoordinate2D, name: String, icon: String, status: PlayerBuildingStatus) {
+        self.id = id
+        self.coordinate = coordinate
+        self.name = name
+        self.icon = icon
+        self.status = status
+        super.init()
+    }
+
+    var title: String? { name }
+
+    var subtitle: String? {
+        switch status {
+        case .constructing: return "建造中..."
+        case .active: return "运行中"
+        case .damaged: return "需要维修"
+        case .inactive: return "已停用"
         }
     }
 }

@@ -49,6 +49,7 @@ struct SimpleMapView: View {
                 locationManager: locationManager,
                 territoryManager: territoryManager,
                 poiManager: poiManager,
+                buildingManager: buildingManager,
                 shouldCenterOnUser: $shouldCenterOnUser
             )
             .ignoresSafeArea(edges: .bottom) // 只忽略底部，保留顶部导航栏空间
@@ -275,11 +276,20 @@ struct SimpleMapView: View {
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
+                        }
+                    }
 
-                            // POI 初始化：搜索 MapKit 并提交候选
-                            if let userId = authManager.currentUser?.id {
-                                await poiManager.onLocationReady(location: location, userId: userId)
-                            }
+                    // 加载建筑数据
+                    Task {
+                        await buildingManager.fetchBuildingTemplates()
+                        await buildingManager.fetchAllPlayerBuildings()
+                    }
+
+                    // POI 初始化：搜索 MapKit 并提交候选
+                    Task {
+                        if let location = locationManager.currentLocation,
+                           let userId = authManager.currentUser?.id {
+                            await poiManager.onLocationReady(location: location, userId: userId)
                         }
                     }
                 }
