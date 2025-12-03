@@ -345,21 +345,17 @@ class ExplorationManager: ObservableObject {
 
     /// 保存会话到数据库（使用 REST API）
     private func saveSessionToDatabase(_ session: ExplorationSession, startLocation: CLLocation?) async throws {
-        let data = ExplorationSessionCreateData(
-            id: session.id.uuidString,
-            user_id: session.userId.uuidString,
-            status: session.status,
-            started_at: ISO8601DateFormatter().string(from: session.startedAt),
-            start_latitude: startLocation?.coordinate.latitude,
-            start_longitude: startLocation?.coordinate.longitude,
-            total_distance: 0,
-            total_area: 0,
-            grid_count: 0,
-            calories_burned: 0
-        )
-
         try await explorationUploader.create(
-            data,
+            id: session.id.uuidString,
+            userId: session.userId.uuidString,
+            status: session.status,
+            startedAt: ISO8601DateFormatter().string(from: session.startedAt),
+            startLatitude: startLocation?.coordinate.latitude,
+            startLongitude: startLocation?.coordinate.longitude,
+            totalDistance: 0,
+            totalArea: 0,
+            gridCount: 0,
+            caloriesBurned: 0,
             supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
             anonKey: SupabaseConfig.supabaseAnonKey,
             accessToken: try? await supabase.auth.session.accessToken
@@ -368,13 +364,13 @@ class ExplorationManager: ObservableObject {
 
     /// 更新会话到数据库（使用 REST API）
     private func updateSessionInDatabase(_ session: ExplorationSession, endLocation: CLLocation?) async throws {
-        // 转换路线点为 JSON
-        let routePoints: [RoutePointData] = session.routePoints.map { loc in
-            RoutePointData(
-                lat: loc.coordinate.latitude,
-                lon: loc.coordinate.longitude,
-                timestamp: loc.timestamp.timeIntervalSince1970
-            )
+        // 转换路线点为基础类型字典数组
+        let routePoints: [[String: Double]] = session.routePoints.map { loc in
+            [
+                "lat": loc.coordinate.latitude,
+                "lon": loc.coordinate.longitude,
+                "timestamp": loc.timestamp.timeIntervalSince1970
+            ]
         }
 
         var durationSeconds: Int? = nil
@@ -385,23 +381,19 @@ class ExplorationManager: ObservableObject {
             durationSeconds = Int(endedAt.timeIntervalSince(session.startedAt))
         }
 
-        let data = ExplorationSessionUpdateData(
-            status: session.status,
-            ended_at: endedAtString,
-            duration_seconds: durationSeconds,
-            end_latitude: endLocation?.coordinate.latitude,
-            end_longitude: endLocation?.coordinate.longitude,
-            total_distance: session.totalDistance,
-            total_area: session.totalArea,
-            grid_count: session.gridCount,
-            calories_burned: session.caloriesBurned,
-            route_points: routePoints,
-            updated_at: ISO8601DateFormatter().string(from: Date())
-        )
-
         try await explorationUploader.update(
             sessionId: session.id.uuidString,
-            data: data,
+            status: session.status,
+            endedAt: endedAtString,
+            durationSeconds: durationSeconds,
+            endLatitude: endLocation?.coordinate.latitude,
+            endLongitude: endLocation?.coordinate.longitude,
+            totalDistance: session.totalDistance,
+            totalArea: session.totalArea,
+            gridCount: session.gridCount,
+            caloriesBurned: session.caloriesBurned,
+            routePoints: routePoints,
+            updatedAt: ISO8601DateFormatter().string(from: Date()),
             supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
             anonKey: SupabaseConfig.supabaseAnonKey,
             accessToken: try? await supabase.auth.session.accessToken

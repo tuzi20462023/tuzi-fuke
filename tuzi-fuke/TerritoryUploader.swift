@@ -8,43 +8,9 @@
 
 import Foundation
 
-// MARK: - 路径点数据
-
-/// 路径点结构（Sendable）
-struct PathPointData: Encodable, Sendable {
-    let lat: Double
-    let lon: Double
-    let timestamp: Double?
-}
-
-// MARK: - 上传数据结构
-
-/// 上传到 Supabase 的领地数据结构
-struct TerritoryUploadData: Encodable, Sendable {
-    let id: String
-    let user_id: String
-    let type: String
-    let center_latitude: Double
-    let center_longitude: Double
-    let radius: Double
-    let is_active: Bool
-    let name: String?
-    let path: [PathPointData]?
-    let polygon: String?
-    let bbox_min_lat: Double?
-    let bbox_max_lat: Double?
-    let bbox_min_lon: Double?
-    let bbox_max_lon: Double?
-    let area: Double?
-    let perimeter: Double?
-    let point_count: Int?
-    let started_at: String?
-    let completed_at: String?
-}
-
 // MARK: - 上传错误
 
-enum TerritoryRESTUploadError: Error, LocalizedError {
+enum TerritoryRESTUploadError: Error, LocalizedError, Sendable {
     case encodingFailed
     case networkError(Error)
     case serverError(Int, String)
@@ -68,12 +34,93 @@ enum TerritoryRESTUploadError: Error, LocalizedError {
 actor TerritoryUploader {
 
     /// 上传领地数据到 Supabase REST API
-    func upload(_ data: TerritoryUploadData, supabaseUrl: String, anonKey: String, accessToken: String?) async throws {
+    /// 接收基础类型参数避免 MainActor 隔离问题
+    func upload(
+        id: String,
+        userId: String,
+        type: String,
+        centerLatitude: Double,
+        centerLongitude: Double,
+        radius: Double,
+        isActive: Bool,
+        name: String?,
+        path: [[String: Double]]?,
+        polygon: String?,
+        bboxMinLat: Double?,
+        bboxMaxLat: Double?,
+        bboxMinLon: Double?,
+        bboxMaxLon: Double?,
+        area: Double?,
+        perimeter: Double?,
+        pointCount: Int?,
+        startedAt: String?,
+        completedAt: String?,
+        supabaseUrl: String,
+        anonKey: String,
+        accessToken: String?
+    ) async throws {
         // 构建 URL
         let urlString = "\(supabaseUrl)/rest/v1/territories"
         guard let url = URL(string: urlString) else {
             throw TerritoryRESTUploadError.encodingFailed
         }
+
+        // 在 actor 内部定义结构体，避免 MainActor 隔离问题
+        struct PathPointData: Encodable, Sendable {
+            let lat: Double
+            let lon: Double
+            let timestamp: Double?
+        }
+
+        struct TerritoryUploadData: Encodable, Sendable {
+            let id: String
+            let user_id: String
+            let type: String
+            let center_latitude: Double
+            let center_longitude: Double
+            let radius: Double
+            let is_active: Bool
+            let name: String?
+            let path: [PathPointData]?
+            let polygon: String?
+            let bbox_min_lat: Double?
+            let bbox_max_lat: Double?
+            let bbox_min_lon: Double?
+            let bbox_max_lon: Double?
+            let area: Double?
+            let perimeter: Double?
+            let point_count: Int?
+            let started_at: String?
+            let completed_at: String?
+        }
+
+        // 转换路径点
+        let pathPoints: [PathPointData]? = path?.compactMap { dict in
+            guard let lat = dict["lat"], let lon = dict["lon"] else { return nil }
+            return PathPointData(lat: lat, lon: lon, timestamp: dict["timestamp"])
+        }
+
+        let data = TerritoryUploadData(
+            id: id,
+            user_id: userId,
+            type: type,
+            center_latitude: centerLatitude,
+            center_longitude: centerLongitude,
+            radius: radius,
+            is_active: isActive,
+            name: name,
+            path: pathPoints,
+            polygon: polygon,
+            bbox_min_lat: bboxMinLat,
+            bbox_max_lat: bboxMaxLat,
+            bbox_min_lon: bboxMinLon,
+            bbox_max_lon: bboxMaxLon,
+            area: area,
+            perimeter: perimeter,
+            point_count: pointCount,
+            started_at: startedAt,
+            completed_at: completedAt
+        )
 
         // 编码数据
         let encoder = JSONEncoder()

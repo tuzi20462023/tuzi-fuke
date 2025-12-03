@@ -24,19 +24,9 @@ struct SimpleMapView: View {
     @State private var showExplorationResult = false
     @State private var explorationResult: ExplorationResult?
 
-    // MARK: - 建筑系统状态
-    @State private var showTerritoryPicker = false
-    @State private var selectedTerritoryForBuilding: Territory?
-    @State private var showBuildingsView = false
-    @StateObject private var buildingManager = BuildingManager.shared
-
     // MARK: - 实时碰撞检测定时器
     @State private var collisionCheckTimer: Timer?
     private let collisionCheckInterval: TimeInterval = 5.0  // 每5秒检查一次
-
-    // MARK: - POI 检测定时器
-    @State private var poiCheckTimer: Timer?
-    private let poiCheckInterval: TimeInterval = 2.0  // 每2秒检查一次POI
 
     // MARK: - 触觉反馈生成器
     private let notificationFeedback = UINotificationFeedbackGenerator()
@@ -50,7 +40,6 @@ struct SimpleMapView: View {
             MapViewRepresentable(
                 locationManager: locationManager,
                 territoryManager: territoryManager,
-                buildingManager: buildingManager,
                 poiManager: poiManager,
                 shouldCenterOnUser: $shouldCenterOnUser
             )
@@ -60,38 +49,10 @@ struct SimpleMapView: View {
             VStack {
                 Spacer()
 
-                // 右侧工具按钮（POI筛选 + 建筑）
+                // 右侧工具按钮（POI筛选）
                 HStack {
                     Spacer()
                     VStack(spacing: 12) {
-                        // 建筑按钮
-                        Button(action: {
-                            if authManager.currentUser != nil {
-                                if territoryManager.territories.isEmpty {
-                                    // 没有领地，提示需要先圈地
-                                    collisionAlertMessage = "请先圈地再建造建筑"
-                                    showCollisionAlert = true
-                                } else if territoryManager.territories.count == 1 {
-                                    // 只有一个领地，直接进入
-                                    selectedTerritoryForBuilding = territoryManager.territories.first
-                                    showBuildingsView = true
-                                } else {
-                                    // 多个领地，显示选择器
-                                    showTerritoryPicker = true
-                                }
-                            } else {
-                                showLoginAlert = true
-                            }
-                        }) {
-                            Image(systemName: "hammer.fill")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.orange)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
-                        }
-
                         // POI 筛选按钮
                         Button(action: {
                             showPOIFilter.toggle()
@@ -208,8 +169,8 @@ struct SimpleMapView: View {
 
                 Spacer()
 
-                // 提示信息
-                if !locationManager.isTracking && territoryManager.territories.isEmpty && !explorationManager.isExploring {
+                // 提示信息（只在既没有圈地也没有探索时显示）
+                if !locationManager.isTracking && !explorationManager.isExploring && territoryManager.territories.isEmpty {
                     Text("点击左下角按钮开始行走圈地")
                         .font(.subheadline)
                         .foregroundColor(.white)
@@ -247,11 +208,6 @@ struct SimpleMapView: View {
             if case .success = territoryManager.claimingState {
                 successOverlay
             }
-
-            // POI 发现弹窗
-            if poiManager.showDiscoveryAlert, let poi = poiManager.lastDiscoveredPOI {
-                poiDiscoveryOverlay(poi: poi)
-            }
         }
         .alert("需要登录", isPresented: $showLoginAlert) {
             Button("去登录") {
@@ -266,14 +222,13 @@ struct SimpleMapView: View {
         } message: {
             Text(collisionAlertMessage)
         }
-        // 领地选择器（多个领地时）
-        .sheet(isPresented: $showTerritoryPicker) {
-            territoryPickerSheet
-        }
-        // 建筑管理视图
-        .sheet(isPresented: $showBuildingsView) {
-            if let territory = selectedTerritoryForBuilding {
-                TerritoryBuildingsView(territory: territory)
+        .alert("发现POI!", isPresented: $poiManager.showDiscoveryAlert) {
+            Button("太棒了!", role: .cancel) {
+                poiManager.clearDiscoveryAlert()
+            }
+        } message: {
+            if let poi = poiManager.lastDiscoveredPOI {
+                Text("🎉 你发现了【\(poi.name)】\n类型: \(poi.type.displayName)\n可获得资源: \(poi.remainingItems)个")
             }
         }
         .sheet(isPresented: $showPOIFilter) {
@@ -293,33 +248,18 @@ struct SimpleMapView: View {
             Task {
                 try? await locationManager.startLocationUpdates()
 
-                // 首次定位后居中并查询附近领地和POI
+                // 首次定位后居中并查询附近领地
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     shouldCenterOnUser = true
 
-                    // 查询领地数据和 POI 数据
+                    // 查询领地数据
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
-                        }
-                    }
 
-                    // 加载建筑数据（优先，不阻塞）
-                    Task {
-                        await buildingManager.fetchBuildingTemplates()
-                        await buildingManager.fetchAllPlayerBuildings()
-                    }
-
-                    // POI 搜索放到独立 Task，不阻塞 UI
-                    Task.detached(priority: .background) {
-                        if let location = await MainActor.run(body: { locationManager.currentLocation }) {
-                            // 使用 onLocationReady 触发完整的 POI 流程
-                            // 包括: 搜索MapKit → 提交候选 → 创建POI → 加载已发现 → 更新缓存
-                            if let userId = await MainActor.run(body: { authManager.currentUser?.id }) {
+                            // POI 初始化：搜索 MapKit 并提交候选
+                            if let userId = authManager.currentUser?.id {
                                 await poiManager.onLocationReady(location: location, userId: userId)
-                            } else {
-                                // 未登录时只搜索本地 POI
-                                await poiManager.searchNearbyPOIs(location: location)
                             }
                         }
                     }
@@ -329,22 +269,12 @@ struct SimpleMapView: View {
         .onChange(of: locationManager.isTracking) { _, isTracking in
             if isTracking {
                 startCollisionMonitoring()
-                startPOIMonitoring()
             } else {
                 stopCollisionMonitoring()
-                stopPOIMonitoring()
-            }
-        }
-        .onChange(of: explorationManager.isExploring) { _, isExploring in
-            if isExploring {
-                startPOIMonitoring()
-            } else {
-                stopPOIMonitoring()
             }
         }
         .onDisappear {
             stopCollisionMonitoring()
-            stopPOIMonitoring()
         }
     }
 
@@ -840,173 +770,6 @@ struct SimpleMapView: View {
         }
     }
 
-    // MARK: - POI 监控
-
-    /// 开始 POI 监控（探索时检测附近 POI）
-    private func startPOIMonitoring() {
-        guard let userId = authManager.currentUser?.id else {
-            appLog(.warning, category: "POI监控", message: "用户未登录，跳过POI监控")
-            return
-        }
-
-        appLog(.info, category: "POI监控", message: "🚀 启动POI检测，间隔: \(poiCheckInterval)秒")
-
-        // 重置检查位置
-        poiManager.resetCheckLocation()
-
-        // 停止之前的定时器
-        poiCheckTimer?.invalidate()
-
-        // 搜索附近POI
-        Task {
-            if let location = locationManager.currentLocation {
-                await poiManager.searchNearbyPOIs(location: location)
-            }
-        }
-
-        // 启动定时器
-        poiCheckTimer = Timer.scheduledTimer(withTimeInterval: poiCheckInterval, repeats: true) { _ in
-            Task { @MainActor in
-                await self.checkNearbyPOIs(userId: userId)
-            }
-        }
-    }
-
-    /// 停止 POI 监控
-    private func stopPOIMonitoring() {
-        poiCheckTimer?.invalidate()
-        poiCheckTimer = nil
-        appLog(.info, category: "POI监控", message: "🛑 停止POI检测")
-    }
-
-    /// 检查附近 POI
-    private func checkNearbyPOIs(userId: UUID) async {
-        guard let location = locationManager.currentLocation else { return }
-
-        // 检查是否有 POI 被发现
-        if let _ = await poiManager.checkNearbyPOIs(location: location, userId: userId) {
-            // 触发成功震动
-            notificationFeedback.notificationOccurred(.success)
-        }
-    }
-
-    // MARK: - 领地选择器
-
-    private var territoryPickerSheet: some View {
-        NavigationView {
-            List {
-                ForEach(territoryManager.territories) { territory in
-                    Button {
-                        selectedTerritoryForBuilding = territory
-                        showTerritoryPicker = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showBuildingsView = true
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "mappin.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.title2)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(territory.name ?? "我的领地")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                Text("半径: \(Int(territory.radius))m")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            // 建筑数量
-                            let buildingCount = buildingManager.buildingCount(in: territory.id)
-                            if buildingCount > 0 {
-                                Text("\(buildingCount) 个建筑")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                            }
-
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-            }
-            .navigationTitle("选择领地")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        showTerritoryPicker = false
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - POI 发现弹窗
-
-    private func poiDiscoveryOverlay(poi: POI) -> some View {
-        VStack {
-            Spacer()
-
-            VStack(spacing: 16) {
-                // 标题
-                HStack {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
-                        .font(.title2)
-                    Text("发现POI!")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-
-                // POI 图标和名称
-                HStack(spacing: 12) {
-                    Image(systemName: poi.type.iconName)
-                        .font(.largeTitle)
-                        .foregroundColor(.yellow)
-                        .frame(width: 50, height: 50)
-                        .background(Color.white.opacity(0.2))
-                        .cornerRadius(10)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("你发现了【\(poi.name)】")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                        Text("类型: \(poi.type.displayName)")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.8))
-                        Text("可获得资源: \(poi.remainingItems) 个")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
-
-                // 确认按钮
-                Button("太棒了!") {
-                    poiManager.clearDiscoveryAlert()
-                }
-                .foregroundColor(.black)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 40)
-                .padding(.vertical, 12)
-                .background(Color.yellow)
-                .cornerRadius(25)
-            }
-            .padding(24)
-            .background(Color.black.opacity(0.9))
-            .cornerRadius(20)
-            .padding(.horizontal, 30)
-            .padding(.bottom, 150)
-            .shadow(color: .yellow.opacity(0.3), radius: 20, x: 0, y: 0)
-        }
-        .transition(.scale.combined(with: .opacity))
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: poiManager.showDiscoveryAlert)
-    }
-
     // MARK: - 探索按钮
 
     private var explorationButton: some View {
@@ -1030,6 +793,9 @@ struct SimpleMapView: View {
                 }
 
                 Task {
+                    // 重置探索状态
+                    poiManager.resetForNewExploration()
+
                     let success = await explorationManager.startExploration(
                         userId: userId,
                         startLocation: locationManager.currentLocation
@@ -1130,13 +896,25 @@ struct SimpleMapView: View {
     // MARK: - 探索位置追踪
 
     private func startExplorationTracking() {
+        // 重置探索状态
+        poiManager.resetForNewExploration()
+
         Task { @MainActor in
+            appLog(.info, category: "探索追踪", message: "🚀 开始探索位置追踪")
+
             while explorationManager.isExploring {
-                if let location = locationManager.currentLocation {
+                if let location = locationManager.currentLocation,
+                   let userId = authManager.currentUser?.id {
+                    // 更新探索位置
                     explorationManager.trackLocation(location)
+
+                    // 检查附近 POI（自动发现）
+                    let _ = await poiManager.checkNearbyPOIs(location: location, userId: userId)
                 }
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2秒
             }
+
+            appLog(.info, category: "探索追踪", message: "🛑 停止探索位置追踪")
         }
     }
 }

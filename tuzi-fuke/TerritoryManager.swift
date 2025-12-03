@@ -420,42 +420,31 @@ class TerritoryManager: ObservableObject {
         do {
             let formatter = ISO8601DateFormatter()
 
-            // 转换 path 数据格式
-            let pathData: [PathPointData]? = territory.path?.compactMap { point in
-                guard let lat = point["lat"], let lon = point["lon"] else { return nil }
-                return PathPointData(lat: lat, lon: lon, timestamp: point["timestamp"])
-            }
-
-            // 使用全局定义的上传数据结构
-            let uploadData = TerritoryUploadData(
-                id: territory.id.uuidString,
-                user_id: territory.ownerId.uuidString,
-                type: territory.type.rawValue,
-                center_latitude: territory.centerLatitude,
-                center_longitude: territory.centerLongitude,
-                radius: territory.radius,
-                is_active: territory.isActive,
-                name: territory.name,
-                path: pathData,
-                polygon: territory.polygonWkt,
-                bbox_min_lat: territory.bboxMinLat,
-                bbox_max_lat: territory.bboxMaxLat,
-                bbox_min_lon: territory.bboxMinLon,
-                bbox_max_lon: territory.bboxMaxLon,
-                area: territory.calculatedArea,
-                perimeter: territory.perimeter,
-                point_count: territory.pointCount,
-                started_at: territory.startedAt.map { formatter.string(from: $0) },
-                completed_at: territory.completedAt.map { formatter.string(from: $0) }
-            )
-
             // 使用独立的 actor 和原生 REST API 执行上传（避免 Swift 6 并发问题）
             let supabaseUrl = SupabaseConfig.supabaseURL.absoluteString
             let anonKey = SupabaseConfig.supabaseAnonKey
             let accessToken = try? await supabase.auth.session.accessToken
 
             try await territoryUploader.upload(
-                uploadData,
+                id: territory.id.uuidString,
+                userId: territory.ownerId.uuidString,
+                type: territory.type.rawValue,
+                centerLatitude: territory.centerLatitude,
+                centerLongitude: territory.centerLongitude,
+                radius: territory.radius,
+                isActive: territory.isActive,
+                name: territory.name,
+                path: territory.path,
+                polygon: territory.polygonWkt,
+                bboxMinLat: territory.bboxMinLat,
+                bboxMaxLat: territory.bboxMaxLat,
+                bboxMinLon: territory.bboxMinLon,
+                bboxMaxLon: territory.bboxMaxLon,
+                area: territory.calculatedArea,
+                perimeter: territory.perimeter,
+                pointCount: territory.pointCount,
+                startedAt: territory.startedAt.map { formatter.string(from: $0) },
+                completedAt: territory.completedAt.map { formatter.string(from: $0) },
                 supabaseUrl: supabaseUrl,
                 anonKey: anonKey,
                 accessToken: accessToken

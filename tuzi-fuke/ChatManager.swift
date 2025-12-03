@@ -75,50 +75,23 @@ class ChatManager: ObservableObject {
             throw ChatError.notAuthenticated
         }
 
-        // 检查设备是否可以发送
-        let deviceManager = DeviceManager.shared
-        if !deviceManager.canSendMessage {
-            let reason = deviceManager.cannotSendReason ?? "当前设备无法发送消息"
-            print("📻 [ChatManager] 设备限制: \(reason)")
-            throw ChatError.deviceCannotSend(reason)
-        }
-
         // 获取当前用户名
         let senderName = AuthManager.shared.currentUser?.email?.components(separatedBy: "@").first ?? AuthManager.shared.currentUser?.username ?? "匿名"
 
         print("📡 [ChatManager] 发送消息: \(content.prefix(20))... 发送者: \(senderName)")
 
-        // 乐观更新：立即在本地显示消息（使用临时ID）
-        let tempId = UUID()
-        let optimisticMessage = Message(
-            id: tempId,
-            senderId: userId,
+        // 使用 REST API 发送（避免 Swift 6 并发问题）
+        try await messageUploader.upload(
+            senderId: userId.uuidString,
             content: content,
-            messageType: .broadcast,
+            messageType: MessageType.broadcast.rawValue,
             senderName: senderName,
-            createdAt: Date()
+            supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
+            anonKey: SupabaseConfig.supabaseAnonKey,
+            accessToken: try? await supabase.auth.session.accessToken
         )
-        messages.append(optimisticMessage)
 
-        do {
-            // 使用 REST API 发送（避免 Swift 6 并发问题）
-            try await messageUploader.upload(
-                MessageUploadData(
-                    sender_id: userId.uuidString,
-                    content: content,
-                    message_type: MessageType.broadcast.rawValue,
-                    sender_name: senderName
-                ),
-                supabaseUrl: SupabaseConfig.supabaseURL.absoluteString,
-                anonKey: SupabaseConfig.supabaseAnonKey,
-                accessToken: try? await supabase.auth.session.accessToken
-            )
-            print("✅ [ChatManager] 消息发送成功")
-        } catch {
-            // 发送失败，移除乐观更新的消息
-            messages.removeAll { $0.id == tempId }
-            throw error
-        }
+        print("✅ [ChatManager] 消息发送成功")
     }
 
     /// 刷新消息
@@ -276,7 +249,6 @@ enum ChatError: LocalizedError {
     case notAuthenticated
     case invalidResponse
     case serverError(Int, String)
-    case deviceCannotSend(String)
 
     var errorDescription: String? {
         switch self {
@@ -288,24 +260,14 @@ enum ChatError: LocalizedError {
             return "服务器响应无效"
         case .serverError(let code, let message):
             return "服务器错误 (\(code)): \(message)"
-        case .deviceCannotSend(let reason):
-            return reason
         }
     }
 }
 
 // MARK: - 消息上传器（Actor，解决 Swift 6 并发问题）
 
-/// 消息上传数据结构
-struct MessageUploadData: Encodable, Sendable {
-    let sender_id: String
-    let content: String
-    let message_type: String
-    let sender_name: String?
-}
-
 /// 消息上传错误
-enum MessageUploadError: Error, LocalizedError {
+enum MessageUploadError: Error, LocalizedError, Sendable {
     case encodingFailed
     case networkError(Error)
     case serverError(Int, String)
@@ -325,11 +287,35 @@ enum MessageUploadError: Error, LocalizedError {
 /// 消息上传器 - 使用原生 URLSession 直接调用 REST API
 actor MessageUploader {
 
-    func upload(_ data: MessageUploadData, supabaseUrl: String, anonKey: String, accessToken: String?) async throws {
+    /// 上传消息，接收基础类型参数避免 MainActor 隔离问题
+    func upload(
+        senderId: String,
+        content: String,
+        messageType: String,
+        senderName: String?,
+        supabaseUrl: String,
+        anonKey: String,
+        accessToken: String?
+    ) async throws {
         let urlString = "\(supabaseUrl)/rest/v1/messages"
         guard let url = URL(string: urlString) else {
             throw MessageUploadError.encodingFailed
         }
+
+        // 在 actor 内部定义结构体，避免 MainActor 隔离问题
+        struct MessageUploadData: Encodable, Sendable {
+            let sender_id: String
+            let content: String
+            let message_type: String
+            let sender_name: String?
+        }
+
+        let data = MessageUploadData(
+            sender_id: senderId,
+            content: content,
+            message_type: messageType,
+            sender_name: senderName
+        )
 
         let encoder = JSONEncoder()
         let jsonData = try encoder.encode(data)
