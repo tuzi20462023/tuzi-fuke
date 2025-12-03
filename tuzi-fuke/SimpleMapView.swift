@@ -24,6 +24,14 @@ struct SimpleMapView: View {
     @State private var showExplorationResult = false
     @State private var explorationResult: ExplorationResult?
 
+    // MARK: - 建筑系统状态
+    @State private var showTerritoryPicker = false
+    @State private var selectedTerritoryForBuilding: Territory?
+    @State private var showBuildingsView = false
+    @State private var showBuildingPlacement = false
+    @State private var selectedBuildingTemplate: BuildingTemplate?
+    @StateObject private var buildingManager = BuildingManager.shared
+
     // MARK: - 实时碰撞检测定时器
     @State private var collisionCheckTimer: Timer?
     private let collisionCheckInterval: TimeInterval = 5.0  // 每5秒检查一次
@@ -49,36 +57,12 @@ struct SimpleMapView: View {
             VStack {
                 Spacer()
 
-                // 右侧工具按钮（POI筛选）
+                // 右侧工具按钮（建筑 + POI筛选）
                 HStack {
                     Spacer()
                     VStack(spacing: 12) {
-                        // POI 筛选按钮
-                        Button(action: {
-                            showPOIFilter.toggle()
-                        }) {
-                            ZStack {
-                                Image(systemName: "building.2.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(poiManager.filteredPOIs.isEmpty ? Color.gray : Color.purple)
-                                    .clipShape(Circle())
-                                    .shadow(radius: 4)
-
-                                // POI 数量角标
-                                if !poiManager.filteredPOIs.isEmpty {
-                                    Text("\(poiManager.filteredPOIs.count)")
-                                        .font(.caption2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                        .padding(4)
-                                        .background(Color.red)
-                                        .clipShape(Circle())
-                                        .offset(x: 16, y: -16)
-                                }
-                            }
-                        }
+                        buildingButton
+                        poiFilterButton
                     }
                     .padding(.trailing, 16)
                 }
@@ -240,6 +224,41 @@ struct SimpleMapView: View {
                     showExplorationResult = false
                     explorationResult = nil
                 }
+            }
+        }
+        .sheet(isPresented: $showTerritoryPicker) {
+            // 领地选择器（多个领地时显示）
+            TerritoryPickerSheet(
+                territories: territoryManager.territories,
+                onSelect: { territory in
+                    selectedTerritoryForBuilding = territory
+                    showTerritoryPicker = false
+                    showBuildingsView = true
+                },
+                onCancel: {
+                    showTerritoryPicker = false
+                }
+            )
+        }
+        .sheet(isPresented: $showBuildingsView) {
+            if let territory = selectedTerritoryForBuilding {
+                BuildingListView(
+                    territoryId: territory.id,
+                    onSelectBuilding: { template in
+                        showBuildingsView = false
+                        // 延迟一下再显示放置界面，避免 sheet 冲突
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            selectedBuildingTemplate = template
+                            showBuildingPlacement = true
+                        }
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showBuildingPlacement) {
+            if let template = selectedBuildingTemplate,
+               let territory = selectedTerritoryForBuilding {
+                BuildingPlacementView(template: template, territory: territory)
             }
         }
         .onAppear {
@@ -503,6 +522,63 @@ struct SimpleMapView: View {
             .background(Color.black.opacity(0.8))
             .cornerRadius(12)
             .padding(.bottom, 200)
+        }
+    }
+
+    // MARK: - 建筑按钮
+
+    private var buildingButton: some View {
+        Button(action: {
+            if authManager.currentUser != nil {
+                if territoryManager.territories.isEmpty {
+                    collisionAlertMessage = "请先圈地再建造建筑"
+                    showCollisionAlert = true
+                } else if territoryManager.territories.count == 1 {
+                    selectedTerritoryForBuilding = territoryManager.territories.first
+                    showBuildingsView = true
+                } else {
+                    showTerritoryPicker = true
+                }
+            } else {
+                showLoginAlert = true
+            }
+        }) {
+            Image(systemName: "hammer.fill")
+                .font(.title2)
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .background(Color.orange)
+                .clipShape(Circle())
+                .shadow(radius: 4)
+        }
+    }
+
+    // MARK: - POI 筛选按钮
+
+    private var poiFilterButton: some View {
+        Button(action: {
+            showPOIFilter.toggle()
+        }) {
+            ZStack {
+                Image(systemName: "building.2.fill")
+                    .font(.title2)
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(poiManager.filteredPOIs.isEmpty ? Color.gray : Color.purple)
+                    .clipShape(Circle())
+                    .shadow(radius: 4)
+
+                if !poiManager.filteredPOIs.isEmpty {
+                    Text("\(poiManager.filteredPOIs.count)")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(4)
+                        .background(Color.red)
+                        .clipShape(Circle())
+                        .offset(x: 16, y: -16)
+                }
+            }
         }
     }
 
@@ -915,6 +991,48 @@ struct SimpleMapView: View {
             }
 
             appLog(.info, category: "探索追踪", message: "🛑 停止探索位置追踪")
+        }
+    }
+}
+
+// MARK: - 领地选择器
+
+struct TerritoryPickerSheet: View {
+    let territories: [Territory]
+    let onSelect: (Territory) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationView {
+            List(territories) { territory in
+                Button(action: {
+                    onSelect(territory)
+                }) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(territory.name ?? "未命名领地")
+                                .font(.headline)
+                            Text("面积: \(Int(territory.area ?? 0))m²")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+            }
+            .navigationTitle("选择领地")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        onCancel()
+                    }
+                }
+            }
         }
     }
 }
