@@ -318,6 +318,20 @@ struct AnyCodableValue: Codable {
     var intValue: Int? { value as? Int }
     var doubleValue: Double? { value as? Double }
     var stringValue: String? { value as? String }
+
+    /// 用于 UI 显示的字符串
+    var displayString: String {
+        if let intVal = value as? Int {
+            return "\(intVal)"
+        } else if let doubleVal = value as? Double {
+            return String(format: "%.1f", doubleVal)
+        } else if let stringVal = value as? String {
+            return stringVal
+        } else if let boolVal = value as? Bool {
+            return boolVal ? "是" : "否"
+        }
+        return "\(value)"
+    }
 }
 
 // MARK: - ========== 以下是原有的简化版模型（保持向后兼容）==========
