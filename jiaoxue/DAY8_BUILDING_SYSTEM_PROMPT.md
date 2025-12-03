@@ -214,14 +214,14 @@ git checkout -b feature/building-system
 
 ## 源项目关键文件参考
 
-| 文件 | 路径 | 用途 |
-|------|------|------|
-| BuildingModels.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingModels.swift` | 数据模型定义 |
-| BuildingManager.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingManager.swift` | 核心业务逻辑 |
-| BuildingBrowserView.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingBrowserView.swift` | 建筑列表 UI |
-| BuildingPlacementView.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingPlacementView.swift` | 放置 UI |
-| BuildingDetailSheet.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingDetailSheet.swift` | 建筑详情 |
-| TerritoryBuildingRow.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/TerritoryBuildingRow.swift` | 建筑行视图 |
+| 文件                          | 路径                                                                                      | 用途      |
+| --------------------------- | --------------------------------------------------------------------------------------- | ------- |
+| BuildingModels.swift        | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingModels.swift`        | 数据模型定义  |
+| BuildingManager.swift       | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingManager.swift`       | 核心业务逻辑  |
+| BuildingBrowserView.swift   | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingBrowserView.swift`   | 建筑列表 UI |
+| BuildingPlacementView.swift | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingPlacementView.swift` | 放置 UI   |
+| BuildingDetailSheet.swift   | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/BuildingDetailSheet.swift`   | 建筑详情    |
+| TerritoryBuildingRow.swift  | `/Users/mikeliu/Desktop/tuzi-earthlord/earthlord/EarthLord/TerritoryBuildingRow.swift`  | 建筑行视图   |
 
 ---
 
@@ -302,12 +302,15 @@ CREATE POLICY "用户只能操作自己的建筑" ON player_buildings
 ## 常见问题
 
 ### Q: 建筑模板列表为空？
+
 A: 检查 building_templates 表是否有数据，需要先插入一些测试模板。
 
 ### Q: 建造失败提示资源不足？
+
 A: 当前简化版可能没有对接资源系统，可以先注释掉资源检查。
 
 ### Q: 地图上看不到建筑？
+
 A: 检查 player_buildings 表中的 location 字段是否有值。
 
 ---
