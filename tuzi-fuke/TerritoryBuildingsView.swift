@@ -11,10 +11,7 @@ import CoreLocation
 import Combine
 
 struct TerritoryBuildingsView: View {
-    let territoryId: UUID
-    let territoryName: String
-    let territoryCenter: CLLocationCoordinate2D
-    let territoryRadius: Double
+    let territory: Territory  // 完整的领地对象
 
     @StateObject private var buildingManager = BuildingManager.shared
     @State private var showBuildingList = false
@@ -35,7 +32,7 @@ struct TerritoryBuildingsView: View {
                     buildingsList
                 }
             }
-            .navigationTitle(territoryName)
+            .navigationTitle(territory.name ?? "我的领地")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -52,10 +49,10 @@ struct TerritoryBuildingsView: View {
                 }
             }
             .refreshable {
-                await buildingManager.fetchPlayerBuildings(territoryId: territoryId)
+                await buildingManager.fetchPlayerBuildings(territoryId: territory.id)
             }
             .sheet(isPresented: $showBuildingList) {
-                BuildingListView(territoryId: territoryId) { template in
+                BuildingListView(territoryId: territory.id) { template in
                     selectedTemplate = template
                     showBuildingList = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -67,15 +64,13 @@ struct TerritoryBuildingsView: View {
                 if let template = selectedTemplate {
                     BuildingPlacementView(
                         template: template,
-                        territoryId: territoryId,
-                        territoryCenter: territoryCenter,
-                        territoryRadius: territoryRadius
+                        territory: territory
                     )
                 }
             }
         }
         .task {
-            await buildingManager.fetchPlayerBuildings(territoryId: territoryId)
+            await buildingManager.fetchPlayerBuildings(territoryId: territory.id)
         }
     }
 
@@ -114,7 +109,11 @@ struct TerritoryBuildingsView: View {
     private var buildingsList: some View {
         List {
             ForEach(buildingManager.playerBuildings) { building in
-                PlayerBuildingRow(building: building)
+                NavigationLink {
+                    BuildingDetailView(building: building)
+                } label: {
+                    PlayerBuildingRow(building: building)
+                }
             }
         }
         .listStyle(.plain)
@@ -298,9 +297,14 @@ struct PlayerBuildingRow: View {
 
 #Preview {
     TerritoryBuildingsView(
-        territoryId: UUID(),
-        territoryName: "我的领地",
-        territoryCenter: CLLocationCoordinate2D(latitude: 31.2304, longitude: 121.4737),
-        territoryRadius: 100
+        territory: Territory(
+            id: UUID(),
+            ownerId: UUID(),
+            name: "我的领地",
+            type: .circle,
+            centerLatitude: 31.2304,
+            centerLongitude: 121.4737,
+            radius: 100
+        )
     )
 }

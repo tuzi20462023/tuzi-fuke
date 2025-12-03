@@ -82,10 +82,86 @@ class BuildingManager: ObservableObject {
 
     // MARK: - Private
     private let supabase = SupabaseManager.shared
+    private var constructionTimer: Timer?
+    private let constructionCheckInterval: TimeInterval = 10.0  // 每10秒检查一次
+
+    // MARK: - 测试模式 (测试完毕后改回 false)
+    /// 测试模式：建造时间改为30秒
+    private let testMode_FastBuild = true
+    private let testBuildTimeSeconds: TimeInterval = 30.0
 
     // MARK: - 初始化
     private init() {
         print("✅ [BuildingManager] 初始化完成")
+        startConstructionTimer()
+    }
+
+    deinit {
+        constructionTimer?.invalidate()
+    }
+
+    // MARK: - 建造进度定时器
+
+    /// 启动建造进度检查定时器
+    private func startConstructionTimer() {
+        constructionTimer?.invalidate()
+        constructionTimer = Timer.scheduledTimer(withTimeInterval: constructionCheckInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.checkConstructionProgress()
+            }
+        }
+        print("⏱️ [BuildingManager] 建造进度定时器已启动，间隔: \(constructionCheckInterval)秒")
+    }
+
+    /// 检查所有建造中的建筑进度
+    private func checkConstructionProgress() async {
+        let constructingBuildings = playerBuildings.filter { $0.status == .constructing }
+
+        guard !constructingBuildings.isEmpty else { return }
+
+        print("🔍 [BuildingManager] 检查 \(constructingBuildings.count) 个建造中的建筑")
+
+        let now = Date()
+        for building in constructingBuildings {
+            if let completedAt = building.buildCompletedAt, now >= completedAt {
+                // 建造完成！
+                print("🎉 [BuildingManager] 建筑完成: \(building.buildingName)")
+                await completeConstruction(buildingId: building.id)
+            }
+        }
+    }
+
+    /// 完成建造，更新状态为 active
+    func completeConstruction(buildingId: UUID) async {
+        print("🏗️ [BuildingManager] 完成建造: \(buildingId)")
+
+        do {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            let updateData = BuildingUpdateData(
+                status: PlayerBuildingStatus.active.rawValue,
+                updated_at: iso.string(from: Date())
+            )
+
+            try await supabase.client.database
+                .from("player_buildings")
+                .update(updateData)
+                .eq("id", value: buildingId.uuidString)
+                .execute()
+
+            // 更新本地状态
+            if let index = playerBuildings.firstIndex(where: { $0.id == buildingId }) {
+                // status 是 var，可以直接修改
+                playerBuildings[index].status = .active
+                playerBuildings[index].updatedAt = Date()
+            }
+
+            print("✅ [BuildingManager] 建筑状态已更新为 active")
+
+        } catch {
+            print("❌ [BuildingManager] 完成建造失败: \(error)")
+        }
     }
 
     // MARK: - 获取建筑模板
@@ -169,6 +245,54 @@ class BuildingManager: ObservableObject {
     }
 
     // MARK: - 获取玩家建筑
+
+    /// 获取玩家所有建筑（用于主地图显示）
+    func fetchAllPlayerBuildings() async {
+        print("🔄 [BuildingManager] 获取所有玩家建筑")
+        isLoading = true
+        defer { isLoading = false }
+
+        guard let userId = await supabase.getCurrentUserId() else {
+            print("❌ [BuildingManager] 用户未登录")
+            return
+        }
+
+        do {
+            let response = try await supabase.client.database
+                .from("player_buildings")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let dateString = try container.decode(String.self)
+
+                let iso = ISO8601DateFormatter()
+                iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                if let date = iso.date(from: dateString) {
+                    return date
+                }
+                iso.formatOptions = [.withInternetDateTime]
+                if let date = iso.date(from: dateString) {
+                    return date
+                }
+
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "无法解析日期: \(dateString)")
+            }
+
+            let buildings = try decoder.decode([PlayerBuilding].self, from: response.data)
+            playerBuildings = buildings
+
+            print("✅ [BuildingManager] 加载了 \(buildings.count) 个玩家建筑（全部）")
+
+        } catch {
+            print("❌ [BuildingManager] 获取所有建筑失败: \(error)")
+            errorMessage = "获取建筑列表失败"
+        }
+    }
 
     /// 获取玩家在某个领地的所有建筑
     func fetchPlayerBuildings(territoryId: UUID) async {
@@ -276,7 +400,21 @@ class BuildingManager: ObservableObject {
 
         // 计算建造时间
         let buildStarted = Date()
-        let buildCompleted = buildStarted.addingTimeInterval(template.buildTimeHours * 3600)
+        let actualBuildTimeSeconds: TimeInterval
+        let actualBuildTimeHours: Double
+
+        if testMode_FastBuild {
+            // 测试模式：30秒建造
+            actualBuildTimeSeconds = testBuildTimeSeconds
+            actualBuildTimeHours = testBuildTimeSeconds / 3600.0
+            print("🧪 [BuildingManager] 测试模式：建造时间 \(Int(testBuildTimeSeconds)) 秒")
+        } else {
+            // 正常模式：使用模板时间
+            actualBuildTimeSeconds = template.buildTimeHours * 3600
+            actualBuildTimeHours = template.buildTimeHours
+        }
+
+        let buildCompleted = buildStarted.addingTimeInterval(actualBuildTimeSeconds)
 
         let locationJSON: GeoJSONPoint?
         if let loc = request.location {
@@ -295,7 +433,7 @@ class BuildingManager: ObservableObject {
             status: PlayerBuildingStatus.constructing.rawValue,
             build_started_at: ISO8601DateFormatter().string(from: buildStarted),
             build_completed_at: ISO8601DateFormatter().string(from: buildCompleted),
-            build_time_hours: template.buildTimeHours,
+            build_time_hours: actualBuildTimeHours,
             level: 1,
             durability: template.durabilityMax,
             durability_max: template.durabilityMax
@@ -327,11 +465,18 @@ class BuildingManager: ObservableObject {
 
             print("✅ [BuildingManager] 建造开始: \(newBuilding.buildingName)")
 
+            let timeMessage: String
+            if testMode_FastBuild {
+                timeMessage = "建造开始！预计 \(Int(testBuildTimeSeconds)) 秒后完成 (测试模式)"
+            } else {
+                timeMessage = "建造开始！预计 \(template.formattedBuildTime) 后完成"
+            }
+
             return BuildingConstructionResult(
                 success: true,
                 building: newBuilding,
                 error: nil,
-                message: "建造开始！预计 \(template.formattedBuildTime) 后完成"
+                message: timeMessage
             )
 
         } catch {
@@ -342,41 +487,6 @@ class BuildingManager: ObservableObject {
                 error: .networkError(error),
                 message: "建造失败: \(error.localizedDescription)"
             )
-        }
-    }
-
-    // MARK: - 完成建造
-
-    /// 完成建造（将状态改为 active）
-    func completeConstruction(buildingId: UUID) async {
-        print("🏗️ [BuildingManager] 完成建造: \(buildingId)")
-
-        guard let index = playerBuildings.firstIndex(where: { $0.id == buildingId }) else {
-            return
-        }
-
-        do {
-            let updateData = BuildingUpdateData(
-                status: PlayerBuildingStatus.active.rawValue,
-                updated_at: ISO8601DateFormatter().string(from: Date())
-            )
-
-            try await supabase.client.database
-                .from("player_buildings")
-                .update(updateData)
-                .eq("id", value: buildingId.uuidString)
-                .execute()
-
-            // 更新本地状态
-            var building = playerBuildings[index]
-            building.status = .active
-            building.updatedAt = Date()
-            playerBuildings[index] = building
-
-            print("✅ [BuildingManager] 建筑完成: \(building.buildingName)")
-
-        } catch {
-            print("❌ [BuildingManager] 完成建造失败: \(error)")
         }
     }
 

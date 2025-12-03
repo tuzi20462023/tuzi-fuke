@@ -46,6 +46,7 @@ struct SimpleMapView: View {
             MapViewRepresentable(
                 locationManager: locationManager,
                 territoryManager: territoryManager,
+                buildingManager: buildingManager,
                 shouldCenterOnUser: $shouldCenterOnUser
             )
             .ignoresSafeArea(edges: .bottom) // 只忽略底部，保留顶部导航栏空间
@@ -219,12 +220,7 @@ struct SimpleMapView: View {
         // 建筑管理视图
         .sheet(isPresented: $showBuildingsView) {
             if let territory = selectedTerritoryForBuilding {
-                TerritoryBuildingsView(
-                    territoryId: territory.id,
-                    territoryName: territory.name ?? "我的领地",
-                    territoryCenter: territory.centerLocation.coordinate,
-                    territoryRadius: territory.radius
-                )
+                TerritoryBuildingsView(territory: territory)
             }
         }
         .onAppear {
@@ -237,14 +233,25 @@ struct SimpleMapView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     shouldCenterOnUser = true
 
-                    // 查询领地数据和POI数据
+                    // 查询领地数据（优先，不阻塞）
                     Task {
                         if let location = locationManager.currentLocation {
                             await territoryManager.refreshTerritories(at: location)
+                        }
+                    }
 
+                    // 加载建筑数据（优先，不阻塞）
+                    Task {
+                        await buildingManager.fetchBuildingTemplates()
+                        await buildingManager.fetchAllPlayerBuildings()
+                    }
+
+                    // POI 搜索放到独立 Task，不阻塞 UI
+                    Task.detached(priority: .background) {
+                        if let location = await MainActor.run(body: { locationManager.currentLocation }) {
                             // 使用 onLocationReady 触发完整的 POI 流程
                             // 包括: 搜索MapKit → 提交候选 → 创建POI → 加载已发现 → 更新缓存
-                            if let userId = authManager.currentUser?.id {
+                            if let userId = await MainActor.run(body: { authManager.currentUser?.id }) {
                                 await poiManager.onLocationReady(location: location, userId: userId)
                             } else {
                                 // 未登录时只搜索本地 POI
