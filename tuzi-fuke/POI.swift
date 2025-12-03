@@ -57,6 +57,23 @@ enum POIType: String, CaseIterable, Codable {
         }
     }
 
+    /// 颜色（十六进制）
+    var color: String {
+        switch self {
+        case .supermarket: return "#44AA44"      // 绿色
+        case .restaurant: return "#FF8800"       // 橙色
+        case .hospital: return "#FF4444"         // 红色
+        case .school: return "#AA44AA"           // 紫色
+        case .park: return "#44AAAA"             // 青色
+        case .gasStation: return "#4444FF"       // 蓝色
+        case .factory: return "#888888"          // 灰色
+        case .convenienceStore: return "#66BB66" // 浅绿
+        case .bank: return "#FFD700"             // 金色
+        case .pharmacy: return "#FF6B6B"         // 浅红
+        case .other: return "#666666"            // 深灰
+        }
+    }
+
     /// 资源数量范围
     var resourceRange: ClosedRange<Int> {
         switch self {
