@@ -2,36 +2,40 @@
 //  POI.swift
 //  tuzi-fuke
 //
-//  POI 数据模型 - 兴趣点
-//  参考源项目 EarthLord
+//  POI 数据模型
 //
 
 import Foundation
 import CoreLocation
-import MapKit
 
 // MARK: - POI 类型
 
-enum POIType: String, CaseIterable, Codable, Sendable {
-    case hospital = "hospital"          // 医院
-    case supermarket = "supermarket"    // 超市
-    case factory = "factory"            // 工厂
-    case restaurant = "restaurant"      // 餐厅
-    case gasStation = "gas_station"     // 加油站
-    case school = "school"              // 学校
-    case park = "park"                  // 公园
-    case other = "other"                // 其他
+enum POIType: String, CaseIterable, Codable {
+    case supermarket = "supermarket"
+    case restaurant = "restaurant"
+    case hospital = "hospital"
+    case school = "school"
+    case park = "park"
+    case gasStation = "gas_station"
+    case factory = "factory"
+    case convenienceStore = "convenience_store"
+    case bank = "bank"
+    case pharmacy = "pharmacy"
+    case other = "other"
 
     /// 显示名称
     var displayName: String {
         switch self {
-        case .hospital: return "医院"
         case .supermarket: return "超市"
-        case .factory: return "工厂"
         case .restaurant: return "餐厅"
-        case .gasStation: return "加油站"
+        case .hospital: return "医院"
         case .school: return "学校"
         case .park: return "公园"
+        case .gasStation: return "加油站"
+        case .factory: return "工厂"
+        case .convenienceStore: return "便利店"
+        case .bank: return "银行"
+        case .pharmacy: return "药店"
         case .other: return "其他"
         }
     }
@@ -39,79 +43,103 @@ enum POIType: String, CaseIterable, Codable, Sendable {
     /// 图标名称
     var iconName: String {
         switch self {
-        case .hospital: return "cross.case.fill"
         case .supermarket: return "cart.fill"
-        case .factory: return "building.2.fill"
         case .restaurant: return "fork.knife"
-        case .gasStation: return "fuelpump.fill"
-        case .school: return "graduationcap.fill"
+        case .hospital: return "cross.fill"
+        case .school: return "book.fill"
         case .park: return "leaf.fill"
+        case .gasStation: return "fuelpump.fill"
+        case .factory: return "building.2.fill"
+        case .convenienceStore: return "storefront.fill"
+        case .bank: return "banknote.fill"
+        case .pharmacy: return "pills.fill"
         case .other: return "mappin.circle.fill"
         }
     }
 
-    /// 颜色
-    var color: String {
+    /// 资源数量范围
+    var resourceRange: ClosedRange<Int> {
         switch self {
-        case .hospital: return "#FF4444"      // 红色
-        case .supermarket: return "#44AA44"   // 绿色
-        case .factory: return "#888888"       // 灰色
-        case .restaurant: return "#FF8800"    // 橙色
-        case .gasStation: return "#4444FF"    // 蓝色
-        case .school: return "#AA44AA"        // 紫色
-        case .park: return "#44AAAA"          // 青色
-        case .other: return "#666666"         // 深灰
+        case .supermarket: return 150...250
+        case .restaurant: return 30...60
+        case .hospital: return 80...150
+        case .school: return 50...100
+        case .park: return 40...80
+        case .gasStation: return 60...120
+        case .factory: return 100...200
+        case .convenienceStore: return 40...80
+        case .bank: return 80...150
+        case .pharmacy: return 50...100
+        case .other: return 20...50
         }
     }
 
-    /// 从字符串创建（处理下划线格式）
-    init(from string: String) {
-        switch string.lowercased() {
-        case "hospital": self = .hospital
-        case "supermarket": self = .supermarket
-        case "factory": self = .factory
-        case "restaurant": self = .restaurant
-        case "gas_station", "gasstation": self = .gasStation
-        case "school": self = .school
-        case "park": self = .park
-        default: self = .other
+    /// MapKit 搜索关键词
+    var searchKeywords: [String] {
+        switch self {
+        case .supermarket: return ["超市", "商场", "购物中心", "华润万家", "沃尔玛", "永辉"]
+        case .restaurant: return ["餐厅", "饭店", "美食"]
+        case .hospital: return ["医院", "诊所", "卫生院"]
+        case .school: return ["学校", "大学", "中学", "小学"]
+        case .park: return ["公园", "广场", "绿地"]
+        case .gasStation: return ["加油站", "中石油", "中石化"]
+        case .factory: return ["工厂", "工业园", "产业园"]
+        case .convenienceStore: return ["便利店", "美宜佳", "7-11", "全家"]
+        case .bank: return ["银行", "ATM"]
+        case .pharmacy: return ["药店", "药房", "大药房"]
+        case .other: return ["商店"]
         }
     }
 }
 
-// MARK: - POI 数据模型
+// MARK: - POI 模型
 
-struct POI: Identifiable, Codable, Sendable {
+struct POI: Identifiable, Codable, Equatable {
     let id: UUID
     let name: String
     let type: POIType
-    let description: String?
     let latitude: Double
     let longitude: Double
     let totalItems: Int
-    let remainingItems: Int
-    let createdAt: Date
-    let updatedAt: Date
-
-    /// 坐标
-    var coordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
-    /// 位置
-    var location: CLLocation {
-        CLLocation(latitude: latitude, longitude: longitude)
-    }
+    var remainingItems: Int
+    let createdAt: Date?
 
     /// 是否还有资源
     var hasResources: Bool {
         remainingItems > 0
     }
 
-    /// 资源百分比
-    var resourcePercentage: Double {
-        guard totalItems > 0 else { return 0 }
-        return Double(remainingItems) / Double(totalItems)
+    /// 获取坐标
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    /// 计算到指定位置的距离（米）
+    func distance(to location: CLLocation) -> Double {
+        let poiLocation = CLLocation(latitude: latitude, longitude: longitude)
+        return location.distance(from: poiLocation)
+    }
+
+    /// 从 MapKit 搜索结果创建 POI
+    static func fromMapItem(
+        _ mapItem: Any, // MKMapItem
+        type: POIType,
+        existingId: UUID? = nil
+    ) -> POI? {
+        guard let item = mapItem as? MKMapItem else { return nil }
+
+        let resourceCount = Int.random(in: type.resourceRange)
+
+        return POI(
+            id: existingId ?? UUID(),
+            name: item.name ?? "未知地点",
+            type: type,
+            latitude: item.placemark.coordinate.latitude,
+            longitude: item.placemark.coordinate.longitude,
+            totalItems: resourceCount,
+            remainingItems: resourceCount,
+            createdAt: Date()
+        )
     }
 
     // MARK: - Codable
@@ -120,123 +148,80 @@ struct POI: Identifiable, Codable, Sendable {
         case id
         case name
         case type
-        case description
         case latitude
         case longitude
         case totalItems = "total_items"
         case remainingItems = "remaining_items"
         case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        // ID 可能是字符串或 UUID
-        if let idString = try? container.decode(String.self, forKey: .id) {
-            self.id = UUID(uuidString: idString) ?? UUID()
-        } else {
-            self.id = try container.decode(UUID.self, forKey: .id)
-        }
-
-        self.name = try container.decode(String.self, forKey: .name)
-
-        // type 是字符串
-        let typeString = try container.decode(String.self, forKey: .type)
-        self.type = POIType(from: typeString)
-
-        self.description = try container.decodeIfPresent(String.self, forKey: .description)
-        self.latitude = try container.decode(Double.self, forKey: .latitude)
-        self.longitude = try container.decode(Double.self, forKey: .longitude)
-        self.totalItems = try container.decode(Int.self, forKey: .totalItems)
-        self.remainingItems = try container.decode(Int.self, forKey: .remainingItems)
-
-        // 日期解析
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
-            self.createdAt = dateFormatter.date(from: createdAtString) ?? Date()
-        } else {
-            self.createdAt = Date()
-        }
-
-        if let updatedAtString = try? container.decode(String.self, forKey: .updatedAt) {
-            self.updatedAt = dateFormatter.date(from: updatedAtString) ?? Date()
-        } else {
-            self.updatedAt = Date()
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id.uuidString, forKey: .id)
-        try container.encode(name, forKey: .name)
-        try container.encode(type.rawValue, forKey: .type)
-        try container.encodeIfPresent(description, forKey: .description)
-        try container.encode(latitude, forKey: .latitude)
-        try container.encode(longitude, forKey: .longitude)
-        try container.encode(totalItems, forKey: .totalItems)
-        try container.encode(remainingItems, forKey: .remainingItems)
-
-        let dateFormatter = ISO8601DateFormatter()
-        try container.encode(dateFormatter.string(from: createdAt), forKey: .createdAt)
-        try container.encode(dateFormatter.string(from: updatedAt), forKey: .updatedAt)
-    }
-
-    // MARK: - 便捷初始化
-
-    init(id: UUID, name: String, type: POIType, description: String?, latitude: Double, longitude: Double, totalItems: Int, remainingItems: Int, createdAt: Date = Date(), updatedAt: Date = Date()) {
-        self.id = id
-        self.name = name
-        self.type = type
-        self.description = description
-        self.latitude = latitude
-        self.longitude = longitude
-        self.totalItems = totalItems
-        self.remainingItems = remainingItems
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
     }
 }
 
-// MARK: - POI 发现记录
+import MapKit
 
-struct POIDiscovery: Identifiable, Codable, Sendable {
-    let id: UUID
-    let userId: UUID
-    let poiId: UUID
-    let discoveredAt: Date
-    let itemsCollected: Int
+// MARK: - MKMapItem 扩展
 
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case poiId = "poi_id"
-        case discoveredAt = "discovered_at"
-        case itemsCollected = "items_collected"
-    }
-}
+extension MKMapItem {
+    /// 推断 POI 类型
+    func inferPOIType() -> POIType {
+        let name = self.name?.lowercased() ?? ""
+        let category = self.pointOfInterestCategory
 
-// MARK: - POI 地图标注
+        // 根据 MapKit 类别判断
+        if let cat = category {
+            switch cat {
+            case .hospital, .pharmacy:
+                if name.contains("药") { return .pharmacy }
+                return .hospital
+            case .school, .university:
+                return .school
+            case .park, .nationalPark:
+                return .park
+            case .gasStation:
+                return .gasStation
+            case .restaurant, .cafe, .bakery, .foodMarket:
+                return .restaurant
+            case .bank, .atm:
+                return .bank
+            default:
+                break
+            }
+        }
 
-class POIAnnotation: NSObject, MKAnnotation {
-    let poi: POI
+        // 根据名称判断
+        if name.contains("超市") || name.contains("商场") || name.contains("购物") ||
+           name.contains("华润") || name.contains("沃尔玛") || name.contains("永辉") {
+            return .supermarket
+        }
+        if name.contains("便利店") || name.contains("美宜佳") || name.contains("7-11") ||
+           name.contains("全家") || name.contains("罗森") {
+            return .convenienceStore
+        }
+        if name.contains("医院") || name.contains("诊所") || name.contains("卫生") {
+            return .hospital
+        }
+        if name.contains("药店") || name.contains("药房") || name.contains("大药房") {
+            return .pharmacy
+        }
+        if name.contains("学校") || name.contains("大学") || name.contains("中学") || name.contains("小学") {
+            return .school
+        }
+        if name.contains("公园") || name.contains("广场") {
+            return .park
+        }
+        if name.contains("加油站") || name.contains("中石油") || name.contains("中石化") {
+            return .gasStation
+        }
+        if name.contains("餐") || name.contains("饭店") || name.contains("美食") ||
+           name.contains("小吃") || name.contains("面馆") {
+            return .restaurant
+        }
+        if name.contains("工厂") || name.contains("工业") || name.contains("产业园") {
+            return .factory
+        }
+        if name.contains("银行") || name.contains("ATM") {
+            return .bank
+        }
 
-    var coordinate: CLLocationCoordinate2D {
-        poi.coordinate
-    }
-
-    var title: String? {
-        poi.name
-    }
-
-    var subtitle: String? {
-        "\(poi.type.displayName) · 资源: \(poi.remainingItems)/\(poi.totalItems)"
-    }
-
-    init(poi: POI) {
-        self.poi = poi
-        super.init()
+        return .other
     }
 }
