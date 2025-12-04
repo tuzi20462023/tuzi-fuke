@@ -304,62 +304,198 @@ struct StatisticCard: View {
     }
 }
 
-// MARK: - 探索结果弹窗
+// MARK: - 探索结果弹窗（含 AI 物资描述）
 
 struct ExplorationResultSheet: View {
     let result: ExplorationResult
     let onDismiss: () -> Void
 
+    @StateObject private var aiGenerator = AILootDescriptionGenerator.shared
+    @State private var lootResult: ExplorationLoot?
+    @State private var isLoadingLoot = true
+
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
-                // 成功图标
-                ZStack {
-                    Circle()
-                        .fill(Color.green.opacity(0.2))
-                        .frame(width: 100, height: 100)
+            ScrollView {
+                VStack(spacing: 20) {
+                    // 成功图标
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.2))
+                            .frame(width: 80, height: 80)
 
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.green)
-                }
-                .padding(.top, 20)
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.green)
+                    }
+                    .padding(.top, 16)
 
-                Text("探索完成!")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    Text("探索完成!")
+                        .font(.title)
+                        .fontWeight(.bold)
 
-                // 统计结果
-                VStack(spacing: 16) {
-                    ResultRow(icon: "clock.fill", title: "探索时长", value: "\(result.durationMinutes) 分钟", color: .blue)
-                    ResultRow(icon: "arrow.triangle.swap", title: "行走距离", value: String(format: "%.2f km", result.distanceKm), color: .green)
-                    ResultRow(icon: "square.grid.3x3", title: "探索面积", value: result.areaDisplay, color: .purple)
-                    ResultRow(icon: "flame.fill", title: "消耗热量", value: String(format: "%.0f 千卡", result.session.caloriesBurned), color: .orange)
-                    ResultRow(icon: "mappin.and.ellipse", title: "探索网格", value: "\(result.session.gridCount) 个", color: .cyan)
+                    // 统计结果（折叠显示）
+                    DisclosureGroup {
+                        VStack(spacing: 12) {
+                            ResultRow(icon: "clock.fill", title: "探索时长", value: "\(result.durationMinutes) 分钟", color: .blue)
+                            ResultRow(icon: "arrow.triangle.swap", title: "行走距离", value: String(format: "%.2f km", result.distanceKm), color: .green)
+                            ResultRow(icon: "square.grid.3x3", title: "探索面积", value: result.areaDisplay, color: .purple)
+                            ResultRow(icon: "flame.fill", title: "消耗热量", value: String(format: "%.0f 千卡", result.session.caloriesBurned), color: .orange)
+                            ResultRow(icon: "mappin.and.ellipse", title: "探索网格", value: "\(result.session.gridCount) 个", color: .cyan)
+                        }
+                        .padding(.top, 8)
+                    } label: {
+                        HStack {
+                            Image(systemName: "chart.bar.fill")
+                                .foregroundColor(.blue)
+                            Text("探索统计")
+                                .fontWeight(.medium)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+
+                    // AI 物资描述区域
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .foregroundColor(.orange)
+                            Text("探索发现")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                        }
+
+                        if isLoadingLoot {
+                            // 加载中
+                            HStack {
+                                Spacer()
+                                VStack(spacing: 12) {
+                                    ProgressView()
+                                        .scaleEffect(1.2)
+                                    Text("正在搜索物资...")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 30)
+                        } else if let loot = lootResult {
+                            // AI 叙述文本
+                            Text(loot.narrative)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .lineSpacing(4)
+                                .padding()
+                                .background(narrativeBackground(mood: loot.mood))
+                                .cornerRadius(12)
+
+                            // 物资列表
+                            VStack(spacing: 8) {
+                                ForEach(loot.items) { item in
+                                    LootItemRow(item: item)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+
+                    Spacer(minLength: 20)
+
+                    // 确定按钮
+                    Button(action: onDismiss) {
+                        Text("收下物资")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [.green, .blue]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                    }
+                    .disabled(isLoadingLoot)
+                    .opacity(isLoadingLoot ? 0.6 : 1.0)
+                    .padding(.bottom, 20)
                 }
                 .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(16)
-
-                Spacer()
-
-                // 确定按钮
-                Button(action: onDismiss) {
-                    Text("太棒了!")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.green)
-                        .cornerRadius(16)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
             }
-            .padding()
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
         }
+        .onAppear {
+            loadLootDescription()
+        }
+    }
+
+    // 加载 AI 物资描述
+    private func loadLootDescription() {
+        Task {
+            let loot = await aiGenerator.generateLootDescription(
+                distance: result.session.totalDistance,
+                area: result.session.totalArea,
+                duration: result.session.endedAt?.timeIntervalSince(result.session.startedAt) ?? 0
+            )
+
+            await MainActor.run {
+                self.lootResult = loot
+                self.isLoadingLoot = false
+            }
+        }
+    }
+
+    // 根据氛围返回背景颜色
+    private func narrativeBackground(mood: String) -> Color {
+        switch mood {
+        case "dangerous":
+            return Color.red.opacity(0.1)
+        case "hopeful":
+            return Color.green.opacity(0.1)
+        default:
+            return Color.orange.opacity(0.1)
+        }
+    }
+}
+
+// MARK: - 物资行视图
+
+struct LootItemRow: View {
+    let item: LootItem
+
+    var body: some View {
+        HStack {
+            Image(systemName: item.icon)
+                .font(.title3)
+                .foregroundColor(.orange)
+                .frame(width: 30)
+
+            Text(item.name)
+                .font(.body)
+
+            Spacer()
+
+            Text("x \(item.quantity)")
+                .font(.headline)
+                .foregroundColor(.primary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+        .cornerRadius(8)
     }
 }
 
