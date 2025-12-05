@@ -12,7 +12,8 @@ struct BuildingListView: View {
     let territoryId: UUID
     let onSelectBuilding: (BuildingTemplate) -> Void
 
-    @StateObject private var buildingManager = BuildingManager.shared
+    // ✅ 使用 @ObservedObject 而不是 @StateObject，因为 BuildingManager.shared 是单例
+    @ObservedObject private var buildingManager = BuildingManager.shared
     @State private var selectedCategory: NewBuildingCategory?
     @Environment(\.dismiss) private var dismiss
 
@@ -22,11 +23,8 @@ struct BuildingListView: View {
                 // 分类选择器
                 categoryPicker
 
-                // 建筑列表
-                if buildingManager.isLoading {
-                    ProgressView("加载中...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if buildingManager.buildingTemplates.isEmpty {
+                // 建筑列表（模板从Bundle加载，无需loading）
+                if buildingManager.buildingTemplates.isEmpty {
                     emptyView
                 } else {
                     buildingList
@@ -42,8 +40,14 @@ struct BuildingListView: View {
                 }
             }
         }
-        .task {
-            await buildingManager.fetchBuildingTemplates()
+        // ✅ 移除 .task，模板已在 BuildingManager.init() 同步加载
+        // 如果为空才异步获取（回退到网络）
+        .onAppear {
+            if buildingManager.buildingTemplates.isEmpty {
+                Task {
+                    await buildingManager.fetchBuildingTemplates()
+                }
+            }
         }
     }
 

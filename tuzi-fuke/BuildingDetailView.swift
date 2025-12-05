@@ -11,12 +11,19 @@ import Combine
 
 struct BuildingDetailView: View {
     let building: PlayerBuilding
-    @StateObject private var buildingManager = BuildingManager.shared
+    // ✅ 使用 @ObservedObject 引用单例
+    @ObservedObject private var buildingManager = BuildingManager.shared
     @Environment(\.dismiss) private var dismiss
 
     // 用于刷新倒计时
     @State private var currentTime = Date()
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    // 拆除相关状态
+    @State private var showDemolishAlert = false
+    @State private var isDemolishing = false
+    @State private var demolishResult: BuildingDemolitionResult?
+    @State private var showResultAlert = false
 
     var body: some View {
         NavigationView {
@@ -306,11 +313,16 @@ struct BuildingDetailView: View {
 
             // 拆除按钮
             Button {
-                // TODO: 实现拆除逻辑
+                showDemolishAlert = true
             } label: {
                 HStack {
-                    Image(systemName: "trash.fill")
-                    Text("拆除建筑")
+                    if isDemolishing {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .red))
+                    } else {
+                        Image(systemName: "trash.fill")
+                    }
+                    Text(isDemolishing ? "拆除中..." : "拆除建筑")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -318,8 +330,56 @@ struct BuildingDetailView: View {
                 .foregroundColor(.red)
                 .cornerRadius(12)
             }
+            .disabled(isDemolishing)
         }
         .padding()
+        .alert("确认拆除", isPresented: $showDemolishAlert) {
+            Button("取消", role: .cancel) { }
+            Button("确认拆除", role: .destructive) {
+                Task {
+                    await performDemolish()
+                }
+            }
+        } message: {
+            Text("确定要拆除「\(building.buildingName)」吗？\n\n拆除后将返还 30% 的建造资源到「待领取」，背包系统上线后可领取。此操作不可撤销。")
+        }
+        .alert("拆除结果", isPresented: $showResultAlert) {
+            Button("确定") {
+                if demolishResult?.success == true {
+                    dismiss()
+                }
+            }
+        } message: {
+            if let result = demolishResult {
+                Text(result.message)
+            }
+        }
+    }
+
+    // MARK: - 拆除操作
+
+    private func performDemolish() async {
+        isDemolishing = true
+
+        guard let userId = await SupabaseManager.shared.getCurrentUserId() else {
+            demolishResult = BuildingDemolitionResult(
+                success: false,
+                message: "用户未登录",
+                refundedResources: [:]
+            )
+            showResultAlert = true
+            isDemolishing = false
+            return
+        }
+
+        let result = await buildingManager.demolishBuilding(
+            buildingId: building.id,
+            userId: userId
+        )
+
+        demolishResult = result
+        showResultAlert = true
+        isDemolishing = false
     }
 
     // MARK: - Helpers
