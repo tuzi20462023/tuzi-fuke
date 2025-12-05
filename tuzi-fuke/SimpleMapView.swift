@@ -10,7 +10,8 @@ struct SimpleMapView: View {
     @ObservedObject var territoryManager: TerritoryManager
     @ObservedObject var authManager: AuthManager
     @ObservedObject var explorationManager: ExplorationManager
-    @StateObject private var poiManager = POIManager.shared
+    // ✅ 使用 @ObservedObject 引用单例
+    @ObservedObject private var poiManager = POIManager.shared
 
     // MARK: - 回调
     var switchToDebugTab: (() -> Void)?
@@ -25,12 +26,10 @@ struct SimpleMapView: View {
     @State private var explorationResult: ExplorationResult?
 
     // MARK: - 建筑系统状态
-    @State private var showTerritoryPicker = false
-    @State private var selectedTerritoryForBuilding: Territory?
-    @State private var showBuildingsView = false
-    @State private var showBuildingPlacement = false
-    @State private var selectedBuildingTemplate: BuildingTemplate?
-    @StateObject private var buildingManager = BuildingManager.shared
+    // ✅ 建筑管理入口已移到「领地」Tab，这里只保留地图显示和轻量预览
+    @ObservedObject private var buildingManager = BuildingManager.shared
+    // ✅ 主地图点击建筑时显示轻量弹窗（使用 .sheet(item:) 绑定）
+    @State private var selectedBuildingForDetail: PlayerBuilding?
 
     // MARK: - 实时碰撞检测定时器
     @State private var collisionCheckTimer: Timer?
@@ -50,7 +49,11 @@ struct SimpleMapView: View {
                 territoryManager: territoryManager,
                 poiManager: poiManager,
                 buildingManager: buildingManager,
-                shouldCenterOnUser: $shouldCenterOnUser
+                shouldCenterOnUser: $shouldCenterOnUser,
+                onBuildingTap: { building in
+                    // ✅ 设置后自动触发 .sheet(item:) 显示轻量弹窗
+                    selectedBuildingForDetail = building
+                }
             )
             .ignoresSafeArea(edges: .bottom) // 只忽略底部，保留顶部导航栏空间
 
@@ -58,11 +61,11 @@ struct SimpleMapView: View {
             VStack {
                 Spacer()
 
-                // 右侧工具按钮（建筑 + POI筛选）
+                // 右侧工具按钮（POI筛选）
+                // ✅ 建筑入口已移到「领地」Tab，避免从 MapKit 弹 sheet 导致白屏
                 HStack {
                     Spacer()
                     VStack(spacing: 12) {
-                        buildingButton
                         poiFilterButton
                     }
                     .padding(.trailing, 16)
@@ -227,71 +230,46 @@ struct SimpleMapView: View {
                 }
             }
         }
-        .sheet(isPresented: $showTerritoryPicker) {
-            // 领地选择器（多个领地时显示）
-            TerritoryPickerSheet(
-                territories: territoryManager.territories,
-                onSelect: { territory in
-                    selectedTerritoryForBuilding = territory
-                    showTerritoryPicker = false
-                    showBuildingsView = true
-                },
-                onCancel: {
-                    showTerritoryPicker = false
-                }
+        // ✅ 主地图点击建筑 → 轻量查看弹窗（只读预览）
+        // 建筑管理入口已移到「领地」Tab，这里不再弹出管理页面
+        .sheet(item: $selectedBuildingForDetail) { building in
+            BuildingQuickViewSheet(
+                building: building,
+                template: buildingManager.getTemplate(for: building.buildingTemplateKey),
+                onManageBuilding: nil  // 不再从这里跳转，用户去「领地」Tab管理
             )
-        }
-        .sheet(isPresented: $showBuildingsView) {
-            if let territory = selectedTerritoryForBuilding {
-                BuildingListView(
-                    territoryId: territory.id,
-                    onSelectBuilding: { template in
-                        showBuildingsView = false
-                        // 延迟一下再显示放置界面，避免 sheet 冲突
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            selectedBuildingTemplate = template
-                            showBuildingPlacement = true
-                        }
-                    }
-                )
-            }
-        }
-        .sheet(isPresented: $showBuildingPlacement) {
-            if let template = selectedBuildingTemplate,
-               let territory = selectedTerritoryForBuilding {
-                BuildingPlacementView(template: template, territory: territory)
-            }
         }
         .onAppear {
             // 请求定位权限并开始更新
             locationManager.requestLocationPermission()
+
+            // ✅ 立即居中地图（不等待网络）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                shouldCenterOnUser = true
+            }
+
+            // ✅ 位置更新（不阻塞）
             Task {
                 try? await locationManager.startLocationUpdates()
+            }
 
-                // 首次定位后居中并查询附近领地
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    shouldCenterOnUser = true
+            // ✅ 数据加载：不阻塞UI，fire-and-forget
+            // 建筑模板已在 BuildingManager.init() 从 Bundle 同步加载，无需再调用
+            Task {
+                // 等待定位完成
+                try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5秒
 
-                    // 查询领地数据
-                    Task {
-                        if let location = locationManager.currentLocation {
-                            await territoryManager.refreshTerritories(at: location)
-                        }
-                    }
+                guard let location = locationManager.currentLocation else { return }
 
-                    // 加载建筑数据
-                    Task {
-                        await buildingManager.fetchBuildingTemplates()
-                        await buildingManager.fetchAllPlayerBuildings()
-                    }
+                // 领地数据（有缓存机制）
+                await territoryManager.refreshTerritories(at: location)
 
-                    // POI 初始化：搜索 MapKit 并提交候选
-                    Task {
-                        if let location = locationManager.currentLocation,
-                           let userId = authManager.currentUser?.id {
-                            await poiManager.onLocationReady(location: location, userId: userId)
-                        }
-                    }
+                // 玩家建筑（有缓存机制）
+                await buildingManager.fetchAllPlayerBuildings()
+
+                // POI（有缓存机制）
+                if let userId = authManager.currentUser?.id {
+                    await poiManager.onLocationReady(location: location, userId: userId)
                 }
             }
         }
@@ -537,31 +515,7 @@ struct SimpleMapView: View {
 
     // MARK: - 建筑按钮
 
-    private var buildingButton: some View {
-        Button(action: {
-            if authManager.currentUser != nil {
-                if territoryManager.territories.isEmpty {
-                    collisionAlertMessage = "请先圈地再建造建筑"
-                    showCollisionAlert = true
-                } else if territoryManager.territories.count == 1 {
-                    selectedTerritoryForBuilding = territoryManager.territories.first
-                    showBuildingsView = true
-                } else {
-                    showTerritoryPicker = true
-                }
-            } else {
-                showLoginAlert = true
-            }
-        }) {
-            Image(systemName: "hammer.fill")
-                .font(.title2)
-                .foregroundColor(.white)
-                .frame(width: 44, height: 44)
-                .background(Color.orange)
-                .clipShape(Circle())
-                .shadow(radius: 4)
-        }
-    }
+    // ✅ 建筑按钮已移除，建筑管理入口在「领地」Tab
 
     // MARK: - POI 筛选按钮
 
@@ -1022,7 +976,7 @@ struct TerritoryPickerSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(territory.name ?? "未命名领地")
                                 .font(.headline)
-                            Text("面积: \(Int(territory.area ?? 0))m²")
+                            Text("面积: \(Int(territory.area))m²")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }

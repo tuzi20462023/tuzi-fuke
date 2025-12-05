@@ -1,0 +1,932 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-10-30T08:46:36.990Z",
+  "templates": [
+    {
+      "id": "cb0c01b4-dd8b-4e6e-b761-1c519a0502e9",
+      "template_id": "campfire",
+      "name": "篝火",
+      "name_zh": "篝火",
+      "name_en": "Campfire",
+      "tier": 1,
+      "category": "survival",
+      "description": "简单的篝火，可以提供照明、取暖和简单的烹饪功能。",
+      "description_zh": "简单的篝火，可以提供照明、取暖和简单的烹饪功能。",
+      "description_en": "Simple campfire that provides lighting, warmth, and basic cooking functions.",
+      "icon": "flame.fill",
+      "required_level": 0,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 0
+      },
+      "required_resources": {
+        "wood": 30,
+        "stone": 20
+      },
+      "build_time_hours": "0.50",
+      "required_conditions": {},
+      "effects": {
+        "heat_output": 5,
+        "light_radius": 10,
+        "morale_bonus": 5,
+        "cooking_speed": 1,
+        "fuel_consumption_per_hour": 2
+      },
+      "maintenance_cost": {
+        "wood": 10
+      },
+      "maintenance_interval_days": 1,
+      "durability_max": 50,
+      "max_per_territory": 3,
+      "upgrade_path": ["cooking_station"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:55.173155+00",
+      "updated_at": "2025-10-28 07:10:55.173155+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/campfire_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/campfire_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:43:05.788+00",
+      "footprint_area": 4,
+      "required_territory_area": 50,
+      "building_dimensions": {
+        "width": 2,
+        "height": 0.5,
+        "length": 2
+      },
+      "max_level": 10
+    },
+    {
+      "id": "4ffb86b7-fb79-40f2-8200-96cb5fb3848a",
+      "template_id": "farm_greenhouse",
+      "name": "温室",
+      "name_zh": "温室",
+      "name_en": "Greenhouse",
+      "tier": 2,
+      "category": "production",
+      "description": "封闭的玻璃温室，可以不受天气影响地种植农作物，产量更高。",
+      "description_zh": "封闭的玻璃温室，可以不受天气影响地种植农作物，产量更高。",
+      "description_en": "Enclosed glass greenhouse for weather-independent crop cultivation with higher yields.",
+      "icon": "cloud.sun.fill",
+      "required_level": 15,
+      "required_tech": ["tech_advanced_farming"],
+      "prerequisite_buildings": ["farm_simple"],
+      "unlock_conditions": {
+        "has_building": "farm_simple",
+        "player_level": 15,
+        "tech_unlocked": "tech_advanced_farming"
+      },
+      "required_resources": {
+        "soil": 150,
+        "wood": 80,
+        "glass": 120,
+        "metal": 100,
+        "plastic": 60
+      },
+      "build_time_hours": "10.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 140,
+        "harvest_cycle_days": 5,
+        "weather_protection": true,
+        "temperature_control": true,
+        "food_production_per_day": 15,
+        "water_consumption_per_day": 8
+      },
+      "maintenance_cost": {
+        "water": 8,
+        "energy": 3,
+        "fertilizer": 5
+      },
+      "maintenance_interval_days": 1,
+      "durability_max": 140,
+      "max_per_territory": 2,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:12:06.062295+00",
+      "updated_at": "2025-10-28 07:12:06.062295+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/farm_greenhouse_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/farm_greenhouse_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:45:43.098+00",
+      "footprint_area": 30,
+      "required_territory_area": 300,
+      "building_dimensions": {
+        "width": 5,
+        "height": 3,
+        "length": 6
+      },
+      "max_level": 8
+    },
+    {
+      "id": "2ae2af26-3fa3-4a45-9a3a-5c00bb078808",
+      "template_id": "farm_simple",
+      "name": "简易农田",
+      "name_zh": "简易农田",
+      "name_en": "Simple Farm",
+      "tier": 1,
+      "category": "production",
+      "description": "开垦的小块土地，可以种植基础农作物。需要定期浇水。",
+      "description_zh": "开垦的小块土地，可以种植基础农作物。需要定期浇水。",
+      "description_en": "Small cultivated plot for growing basic crops. Requires regular watering.",
+      "icon": "leaf.fill",
+      "required_level": 3,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 3,
+        "territory_size_min": 500
+      },
+      "required_resources": {
+        "soil": 100,
+        "wood": 40,
+        "seeds": 10
+      },
+      "build_time_hours": "3.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 100,
+        "harvest_cycle_days": 7,
+        "food_production_per_day": 5,
+        "water_consumption_per_day": 5
+      },
+      "maintenance_cost": {
+        "water": 5,
+        "fertilizer": 2
+      },
+      "maintenance_interval_days": 1,
+      "durability_max": 100,
+      "max_per_territory": 4,
+      "upgrade_path": ["farm_greenhouse"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:55.173155+00",
+      "updated_at": "2025-10-28 07:10:55.173155+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/farm_simple_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/farm_simple_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:44:27.75+00",
+      "footprint_area": 12,
+      "required_territory_area": 80,
+      "building_dimensions": {
+        "width": 3,
+        "height": 0.3,
+        "length": 4
+      },
+      "max_level": 10
+    },
+    {
+      "id": "16872923-18f5-4806-872f-994014510214",
+      "template_id": "generator_solar",
+      "name": "太阳能板",
+      "name_zh": "太阳能板",
+      "name_en": "Solar Panel",
+      "tier": 2,
+      "category": "energy",
+      "description": "太阳能发电板，白天发电效率高，需要定期清洁。",
+      "description_zh": "太阳能发电板，白天发电效率高，需要定期清洁。",
+      "description_en": "Solar power panel with high daytime efficiency. Requires regular cleaning.",
+      "icon": "sun.max.fill",
+      "required_level": 10,
+      "required_tech": ["tech_renewable_energy"],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 10,
+        "tech_unlocked": "tech_renewable_energy"
+      },
+      "required_resources": {
+        "wire": 80,
+        "glass": 80,
+        "metal": 150,
+        "electronics": 60
+      },
+      "build_time_hours": "5.00",
+      "required_conditions": {
+        "sunlight_hours_min": 4
+      },
+      "effects": {
+        "efficiency": 0.9,
+        "noise_level": "none",
+        "daytime_only": true,
+        "durability_max": 120,
+        "energy_output_per_hour": 8
+      },
+      "maintenance_cost": {
+        "cloth": 1
+      },
+      "maintenance_interval_days": 14,
+      "durability_max": 120,
+      "max_per_territory": 3,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:11:26.267035+00",
+      "updated_at": "2025-10-28 07:11:26.267035+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/generator_solar_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/generator_solar_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:45:03.707+00",
+      "footprint_area": 20,
+      "required_territory_area": 150,
+      "building_dimensions": {
+        "width": 4,
+        "height": 0.3,
+        "length": 5
+      },
+      "max_level": 8
+    },
+    {
+      "id": "71c44b76-c659-4592-9029-66fba1e7f57f",
+      "template_id": "generator_wind",
+      "name": "风力发电机",
+      "name_zh": "风力发电机",
+      "name_en": "Wind Turbine",
+      "tier": 2,
+      "category": "energy",
+      "description": "利用风力发电的装置，可以为领地提供稳定的电力供应。",
+      "description_zh": "利用风力发电的装置，可以为领地提供稳定的电力供应。",
+      "description_en": "Wind-powered generator that provides stable electricity supply to your territory.",
+      "icon": "wind",
+      "required_level": 8,
+      "required_tech": ["tech_renewable_energy"],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 8,
+        "tech_unlocked": "tech_renewable_energy"
+      },
+      "required_resources": {
+        "wire": 100,
+        "gears": 20,
+        "metal": 200,
+        "electronics": 50
+      },
+      "build_time_hours": "6.00",
+      "required_conditions": {
+        "open_space": true,
+        "elevation_min": 50
+      },
+      "effects": {
+        "efficiency": 0.8,
+        "noise_level": "medium",
+        "durability_max": 150,
+        "weather_dependent": true,
+        "energy_output_per_hour": 10
+      },
+      "maintenance_cost": {
+        "oil": 2,
+        "metal": 5
+      },
+      "maintenance_interval_days": 7,
+      "durability_max": 150,
+      "max_per_territory": 2,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:11:26.267035+00",
+      "updated_at": "2025-10-28 07:11:26.267035+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/generator_wind_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/generator_wind_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:44:46.741+00",
+      "footprint_area": 25,
+      "required_territory_area": 200,
+      "building_dimensions": {
+        "width": 5,
+        "height": 12,
+        "length": 5
+      },
+      "max_level": 8
+    },
+    {
+      "id": "d6038e43-5416-4ecb-aa30-fd09e0c2380f",
+      "template_id": "medical_station",
+      "name": "医疗站",
+      "name_zh": "医疗站",
+      "name_en": "Medical Station",
+      "tier": 2,
+      "category": "survival",
+      "description": "配备基础医疗设备的治疗点，可以更快速地恢复健康和治疗疾病。",
+      "description_zh": "配备基础医疗设备的治疗点，可以更快速地恢复健康和治疗疾病。",
+      "description_en": "Treatment point with basic medical equipment for faster health recovery and disease treatment.",
+      "icon": "cross.case.fill",
+      "required_level": 12,
+      "required_tech": ["tech_basic_medicine"],
+      "prerequisite_buildings": ["shelter_improved"],
+      "unlock_conditions": {
+        "player_level": 12,
+        "tech_unlocked": "tech_basic_medicine"
+      },
+      "required_resources": {
+        "cloth": 60,
+        "glass": 40,
+        "metal": 120,
+        "medical_supplies": 80
+      },
+      "build_time_hours": "6.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 130,
+        "surgery_available": false,
+        "treatment_capacity": 2,
+        "cure_disease_chance": 0.7,
+        "health_regen_per_hour": 5
+      },
+      "maintenance_cost": {
+        "cloth": 5,
+        "medical_supplies": 10
+      },
+      "maintenance_interval_days": 7,
+      "durability_max": 130,
+      "max_per_territory": 1,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:11:26.267035+00",
+      "updated_at": "2025-10-28 07:11:26.267035+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/medical_station_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/medical_station_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:45:21.982+00",
+      "footprint_area": 40,
+      "required_territory_area": 300,
+      "building_dimensions": {
+        "width": 5,
+        "height": 3,
+        "length": 8
+      },
+      "max_level": 8
+    },
+    {
+      "id": "e9d236de-5b25-42d7-9a18-f17c6969c1c7",
+      "template_id": "radio_station",
+      "name": "无线电台",
+      "name_zh": "无线电台",
+      "name_en": "Radio Station",
+      "tier": 2,
+      "category": "communication",
+      "description": "无线电通讯站，可以大幅扩展通讯范围，发送广播消息。",
+      "description_zh": "无线电通讯站，可以大幅扩展通讯范围，发送广播消息。",
+      "description_en": "Radio communication station that greatly extends communication range and broadcasts messages.",
+      "icon": "antenna.radiowaves.left.and.right",
+      "required_level": 18,
+      "required_tech": ["tech_radio_communication"],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 18,
+        "tech_unlocked": "tech_radio_communication"
+      },
+      "required_resources": {
+        "wire": 120,
+        "metal": 180,
+        "antenna": 1,
+        "electronics": 100
+      },
+      "build_time_hours": "12.00",
+      "required_conditions": {
+        "elevation_min": 30,
+        "has_power_source": true
+      },
+      "effects": {
+        "durability_max": 150,
+        "requires_power": true,
+        "broadcast_capacity": 100,
+        "message_queue_size": 50,
+        "signal_strength_bonus": 30,
+        "energy_consumption_per_hour": 5,
+        "communication_range_bonus_km": 50
+      },
+      "maintenance_cost": {
+        "energy": 10,
+        "electronics": 5
+      },
+      "maintenance_interval_days": 7,
+      "durability_max": 150,
+      "max_per_territory": 1,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:12:06.062295+00",
+      "updated_at": "2025-10-28 07:12:06.062295+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/radio_station_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/radio_station_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:46:36.99+00",
+      "footprint_area": 36,
+      "required_territory_area": 250,
+      "building_dimensions": {
+        "width": 6,
+        "height": 4,
+        "length": 6
+      },
+      "max_level": 8
+    },
+    {
+      "id": "18f120be-3616-4e98-9bfb-03c21332fa23",
+      "template_id": "shelter_basic",
+      "name": "简易庇护所",
+      "name_zh": "简易庇护所",
+      "name_en": "Basic Shelter",
+      "tier": 1,
+      "category": "survival",
+      "description": "用废料和木板搭建的基础避难所，可以提供休息和基本防护。",
+      "description_zh": "用废料和木板搭建的基础避难所，可以提供休息和基本防护。",
+      "description_en": "Basic shelter built from scrap and wooden boards, providing rest and basic protection.",
+      "icon": "house.fill",
+      "required_level": 0,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 0,
+        "territories_owned": 1
+      },
+      "required_resources": {
+        "wood": 80,
+        "cloth": 20,
+        "scrap": 50
+      },
+      "build_time_hours": "2.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 100,
+        "rest_efficiency": 1.2,
+        "storage_capacity": 200,
+        "health_regen_bonus": 1
+      },
+      "maintenance_cost": {
+        "wood": 5
+      },
+      "maintenance_interval_days": 7,
+      "durability_max": 100,
+      "max_per_territory": 2,
+      "upgrade_path": ["shelter_improved"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:07.912579+00",
+      "updated_at": "2025-10-28 07:10:07.912579+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/shelter_basic_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/shelter_basic_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:42:28.013+00",
+      "footprint_area": 25,
+      "required_territory_area": 100,
+      "building_dimensions": {
+        "width": 5,
+        "height": 2.5,
+        "length": 5
+      },
+      "max_level": 10
+    },
+    {
+      "id": "22e25cc4-2e02-4b0f-ba7d-90fec3ceac21",
+      "template_id": "shelter_improved",
+      "name": "改进庇护所",
+      "name_zh": "改进庇护所",
+      "name_en": "Improved Shelter",
+      "tier": 1,
+      "category": "survival",
+      "description": "使用更好的材料加固的避难所，提供更好的休息质量和更大储物空间。",
+      "description_zh": "使用更好的材料加固的避难所，提供更好的休息质量和更大储物空间。",
+      "description_en": "Reinforced shelter with better materials, providing improved rest quality and more storage space.",
+      "icon": "house.fill",
+      "required_level": 3,
+      "required_tech": [],
+      "prerequisite_buildings": ["shelter_basic"],
+      "unlock_conditions": {
+        "has_building": "shelter_basic",
+        "player_level": 3
+      },
+      "required_resources": {
+        "wood": 150,
+        "cloth": 40,
+        "metal": 80,
+        "nails": 30
+      },
+      "build_time_hours": "4.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 150,
+        "rest_efficiency": 1.5,
+        "storage_capacity": 400,
+        "health_regen_bonus": 2,
+        "weather_protection": 0.8
+      },
+      "maintenance_cost": {
+        "wood": 3,
+        "metal": 2
+      },
+      "maintenance_interval_days": 10,
+      "durability_max": 150,
+      "max_per_territory": 1,
+      "upgrade_path": ["shelter_reinforced"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:07.912579+00",
+      "updated_at": "2025-10-28 07:10:07.912579+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/shelter_improved_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/shelter_improved_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:42:44.358+00",
+      "footprint_area": 50,
+      "required_territory_area": 200,
+      "building_dimensions": {
+        "width": 7,
+        "height": 3.5,
+        "length": 7
+      },
+      "max_level": 10
+    },
+    {
+      "id": "3d206ce2-564e-466c-b489-d64f1d646a11",
+      "template_id": "storage_medium",
+      "name": "中型仓库",
+      "name_zh": "中型仓库",
+      "name_en": "Medium Warehouse",
+      "tier": 1,
+      "category": "storage",
+      "description": "更大的储存空间，采用防潮设计，可以更好地保护物品。",
+      "description_zh": "更大的储存空间，采用防潮设计，可以更好地保护物品。",
+      "description_en": "Larger storage space with moisture-proof design for better item protection.",
+      "icon": "shippingbox.fill",
+      "required_level": 5,
+      "required_tech": [],
+      "prerequisite_buildings": ["storage_small"],
+      "unlock_conditions": {
+        "has_building": "storage_small",
+        "player_level": 5
+      },
+      "required_resources": {
+        "wood": 120,
+        "metal": 60,
+        "nails": 40,
+        "plastic": 20
+      },
+      "build_time_hours": "3.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 120,
+        "decay_reduction": 0.3,
+        "item_protection": 0.8,
+        "storage_capacity": 800
+      },
+      "maintenance_cost": {
+        "wood": 5,
+        "metal": 2
+      },
+      "maintenance_interval_days": 14,
+      "durability_max": 120,
+      "max_per_territory": 3,
+      "upgrade_path": ["storage_large"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:07.912579+00",
+      "updated_at": "2025-10-28 07:10:07.912579+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/storage_medium_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/storage_medium_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:43:38.338+00",
+      "footprint_area": 100,
+      "required_territory_area": 200,
+      "building_dimensions": {
+        "width": 10,
+        "height": 4,
+        "length": 10
+      },
+      "max_level": 10
+    },
+    {
+      "id": "80669a2f-a21e-4309-96c9-bad5cc6ddd6b",
+      "template_id": "storage_small",
+      "name": "小型储物箱",
+      "name_zh": "小型储物箱",
+      "name_en": "Small Storage Box",
+      "tier": 1,
+      "category": "storage",
+      "description": "简单的木箱，可以安全存放少量物品。",
+      "description_zh": "简单的木箱，可以安全存放少量物品。",
+      "description_en": "Simple wooden box for safely storing a small amount of items.",
+      "icon": "archivebox.fill",
+      "required_level": 0,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 0
+      },
+      "required_resources": {
+        "wood": 40,
+        "nails": 10
+      },
+      "build_time_hours": "1.00",
+      "required_conditions": {},
+      "effects": {
+        "durability_max": 80,
+        "item_protection": 0.5,
+        "storage_capacity": 300
+      },
+      "maintenance_cost": {
+        "wood": 2
+      },
+      "maintenance_interval_days": 14,
+      "durability_max": 80,
+      "max_per_territory": 5,
+      "upgrade_path": ["storage_medium"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:07.912579+00",
+      "updated_at": "2025-10-28 07:10:07.912579+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/storage_small_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/storage_small_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:43:21.826+00",
+      "footprint_area": 16,
+      "required_territory_area": 100,
+      "building_dimensions": {
+        "width": 4,
+        "height": 3,
+        "length": 4
+      },
+      "max_level": 10
+    },
+    {
+      "id": "65f4c11c-9e88-4e08-81b2-8e4f796fac54",
+      "template_id": "watchtower",
+      "name": "瞭望塔",
+      "name_zh": "瞭望塔",
+      "name_en": "Watchtower",
+      "tier": 2,
+      "category": "defense",
+      "description": "高耸的瞭望塔，可以提前发现接近的威胁，扩大视野范围。",
+      "description_zh": "高耸的瞭望塔，可以提前发现接近的威胁，扩大视野范围。",
+      "description_en": "Tall watchtower for early detection of approaching threats and expanded field of view.",
+      "icon": "eye.fill",
+      "required_level": 10,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 10,
+        "territories_owned_min": 2
+      },
+      "required_resources": {
+        "rope": 40,
+        "wood": 200,
+        "metal": 150,
+        "nails": 80
+      },
+      "build_time_hours": "8.00",
+      "required_conditions": {
+        "flat_terrain": true,
+        "territory_size_min": 800
+      },
+      "effects": {
+        "defense_bonus": 10,
+        "early_warning": true,
+        "height_meters": 15,
+        "durability_max": 160,
+        "guard_capacity": 1,
+        "vision_radius_bonus": 500
+      },
+      "maintenance_cost": {
+        "wood": 10,
+        "metal": 5
+      },
+      "maintenance_interval_days": 14,
+      "durability_max": 160,
+      "max_per_territory": 2,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:12:06.062295+00",
+      "updated_at": "2025-10-28 07:12:06.062295+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/watchtower_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/watchtower_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:46:18.932+00",
+      "footprint_area": 16,
+      "required_territory_area": 200,
+      "building_dimensions": {
+        "width": 4,
+        "height": 6,
+        "length": 4
+      },
+      "max_level": 8
+    },
+    {
+      "id": "d40032e3-8052-4422-9288-1e192580aca2",
+      "template_id": "water_collector",
+      "name": "雨水收集器",
+      "name_zh": "雨水收集器",
+      "name_en": "Rainwater Collector",
+      "tier": 1,
+      "category": "production",
+      "description": "简单的雨水收集装置，可以在下雨时收集干净的水源。",
+      "description_zh": "简单的雨水收集装置，可以在下雨时收集干净的水源。",
+      "description_en": "Simple rainwater collection device that can collect clean water when it rains.",
+      "icon": "cloud.rain.fill",
+      "required_level": 2,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 2
+      },
+      "required_resources": {
+        "pipe": 10,
+        "metal": 30,
+        "plastic": 40
+      },
+      "build_time_hours": "2.00",
+      "required_conditions": {},
+      "effects": {
+        "water_quality": "clean",
+        "durability_max": 90,
+        "storage_capacity": 100,
+        "weather_dependent": true,
+        "water_production_per_day": 8
+      },
+      "maintenance_cost": {
+        "plastic": 2
+      },
+      "maintenance_interval_days": 14,
+      "durability_max": 90,
+      "max_per_territory": 3,
+      "upgrade_path": ["water_purifier"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:55.173155+00",
+      "updated_at": "2025-10-28 07:10:55.173155+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/water_collector_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/water_collector_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:44:11.914+00",
+      "footprint_area": 2,
+      "required_territory_area": 50,
+      "building_dimensions": {
+        "width": 1.5,
+        "height": 2,
+        "length": 1.5
+      },
+      "max_level": 10
+    },
+    {
+      "id": "aee00bbb-a5d1-4dfa-b4a1-fa33052caaa8",
+      "template_id": "water_well",
+      "name": "水井",
+      "name_zh": "水井",
+      "name_en": "Water Well",
+      "tier": 2,
+      "category": "production",
+      "description": "挖掘的深井，可以稳定获取地下水源。需要靠近地下水脉。",
+      "description_zh": "挖掘的深井，可以稳定获取地下水源。需要靠近地下水脉。",
+      "description_en": "Deep well for stable underground water source. Must be near groundwater veins.",
+      "icon": "drop.fill",
+      "required_level": 6,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 6,
+        "territory_size_min": 1000
+      },
+      "required_resources": {
+        "pipe": 50,
+        "metal": 100,
+        "stone": 150,
+        "cement": 40
+      },
+      "build_time_hours": "8.00",
+      "required_conditions": {
+        "soil_type": "suitable",
+        "near_groundwater": true
+      },
+      "effects": {
+        "depth_meters": 20,
+        "water_quality": "groundwater",
+        "durability_max": 200,
+        "requires_power": false,
+        "water_production_per_day": 30
+      },
+      "maintenance_cost": {
+        "stone": 10
+      },
+      "maintenance_interval_days": 30,
+      "durability_max": 200,
+      "max_per_territory": 1,
+      "upgrade_path": [],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:11:26.267035+00",
+      "updated_at": "2025-10-28 07:11:26.267035+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/water_well_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/water_well_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:46:02.619+00",
+      "footprint_area": 25,
+      "required_territory_area": 250,
+      "building_dimensions": {
+        "width": 5,
+        "height": 3,
+        "length": 5
+      },
+      "max_level": 8
+    },
+    {
+      "id": "ddb4d5be-dc37-4a14-83c3-1df6e5de59d8",
+      "template_id": "workbench_simple",
+      "name": "简易工作台",
+      "name_zh": "简易工作台",
+      "name_en": "Simple Workbench",
+      "tier": 1,
+      "category": "production",
+      "description": "基础的工作台，可以制作简单的工具和物品。",
+      "description_zh": "基础的工作台，可以制作简单的工具和物品。",
+      "description_en": "Basic workbench for crafting simple tools and items.",
+      "icon": "hammer.fill",
+      "required_level": 1,
+      "required_tech": [],
+      "prerequisite_buildings": [],
+      "unlock_conditions": {
+        "player_level": 1
+      },
+      "required_resources": {
+        "wood": 60,
+        "metal": 30,
+        "nails": 20
+      },
+      "build_time_hours": "2.00",
+      "required_conditions": {},
+      "effects": {
+        "crafting_speed": 1,
+        "durability_max": 100,
+        "crafting_quality": 1
+      },
+      "maintenance_cost": {
+        "wood": 3,
+        "metal": 2
+      },
+      "maintenance_interval_days": 10,
+      "durability_max": 100,
+      "max_per_territory": 2,
+      "upgrade_path": ["workbench_advanced"],
+      "is_custom": false,
+      "created_by_user_id": null,
+      "generated_by_ai": false,
+      "generated_at": null,
+      "expires_at": null,
+      "created_at": "2025-10-28 07:10:55.173155+00",
+      "updated_at": "2025-10-28 07:10:55.173155+00",
+      "is_active": true,
+      "icon_full_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/workbench_simple_full.png",
+      "icon_thumbnail_url": "https://cflczfhqfzviiaglanuh.supabase.co/storage/v1/object/public/building-images/building_icons/workbench_simple_thumbnail.png",
+      "icon_generated_at": "2025-10-30 08:43:55.253+00",
+      "footprint_area": 6,
+      "required_territory_area": 80,
+      "building_dimensions": {
+        "width": 2,
+        "height": 1,
+        "length": 3
+      },
+      "max_level": 10
+    }
+  ]
+}

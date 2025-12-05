@@ -11,7 +11,8 @@ import Combine
 
 struct BuildingDetailView: View {
     let building: PlayerBuilding
-    @StateObject private var buildingManager = BuildingManager.shared
+    // ✅ 使用 @ObservedObject 引用单例
+    @ObservedObject private var buildingManager = BuildingManager.shared
     @Environment(\.dismiss) private var dismiss
 
     // 用于刷新倒计时
@@ -340,7 +341,7 @@ struct BuildingDetailView: View {
                 }
             }
         } message: {
-            Text("确定要拆除「\(building.buildingName)」吗？\n\n拆除后将返还 30% 的建造资源。此操作不可撤销。")
+            Text("确定要拆除「\(building.buildingName)」吗？\n\n拆除后将返还 30% 的建造资源到「待领取」，背包系统上线后可领取。此操作不可撤销。")
         }
         .alert("拆除结果", isPresented: $showResultAlert) {
             Button("确定") {

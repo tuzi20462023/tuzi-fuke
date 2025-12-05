@@ -13,20 +13,24 @@ import Combine
 struct TerritoryBuildingsView: View {
     let territory: Territory  // 完整的领地对象
 
-    @StateObject private var buildingManager = BuildingManager.shared
+    // ✅ 使用 @ObservedObject 引用单例
+    @ObservedObject private var buildingManager = BuildingManager.shared
+
+    // ✅ 使用 .sheet 方式，参考原项目架构，避免首次加载白屏
     @State private var showBuildingList = false
-    @State private var selectedTemplate: BuildingTemplate?
-    @State private var showPlacement = false
+    @State private var selectedTemplateForPlacement: BuildingTemplate?
 
     @Environment(\.dismiss) private var dismiss
+
+    // 当前领地的建筑
+    private var territoryBuildings: [PlayerBuilding] {
+        buildingManager.playerBuildings.filter { $0.territoryId == territory.id }
+    }
 
     var body: some View {
         NavigationView {
             VStack {
-                if buildingManager.isLoading {
-                    ProgressView("加载中...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if buildingManager.playerBuildings.isEmpty {
+                if territoryBuildings.isEmpty {
                     emptyView
                 } else {
                     buildingsList
@@ -51,26 +55,23 @@ struct TerritoryBuildingsView: View {
             .refreshable {
                 await buildingManager.fetchPlayerBuildings(territoryId: territory.id)
             }
-            .sheet(isPresented: $showBuildingList) {
-                BuildingListView(territoryId: territory.id) { template in
-                    selectedTemplate = template
-                    showBuildingList = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        showPlacement = true
-                    }
-                }
-            }
-            .sheet(isPresented: $showPlacement) {
-                if let template = selectedTemplate {
-                    BuildingPlacementView(
-                        template: template,
-                        territory: territory
-                    )
-                }
-            }
         }
         .task {
             await buildingManager.fetchPlayerBuildings(territoryId: territory.id)
+        }
+        // ✅ 使用 .sheet 打开建筑列表（参考原项目）
+        .sheet(isPresented: $showBuildingList) {
+            BuildingListView(territoryId: territory.id) { template in
+                selectedTemplateForPlacement = template
+                showBuildingList = false
+            }
+        }
+        // ✅ 选择建筑后打开放置界面
+        .sheet(item: $selectedTemplateForPlacement) { template in
+            BuildingPlacementView(
+                template: template,
+                territory: territory
+            )
         }
     }
 
@@ -108,7 +109,8 @@ struct TerritoryBuildingsView: View {
 
     private var buildingsList: some View {
         List {
-            ForEach(buildingManager.playerBuildings) { building in
+            // ✅ 只显示当前领地的建筑
+            ForEach(territoryBuildings) { building in
                 NavigationLink {
                     BuildingDetailView(building: building)
                 } label: {
@@ -124,7 +126,8 @@ struct TerritoryBuildingsView: View {
 
 struct PlayerBuildingRow: View {
     let building: PlayerBuilding
-    @StateObject private var buildingManager = BuildingManager.shared
+    // ✅ 使用 @ObservedObject 引用单例
+    @ObservedObject private var buildingManager = BuildingManager.shared
 
     // 用于刷新倒计时
     @State private var currentTime = Date()

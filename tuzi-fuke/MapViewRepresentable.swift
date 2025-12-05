@@ -11,6 +11,9 @@ struct MapViewRepresentable: UIViewRepresentable {
     @ObservedObject var buildingManager: BuildingManager
     @Binding var shouldCenterOnUser: Bool
 
+    // 建筑点击回调
+    var onBuildingTap: ((PlayerBuilding) -> Void)?
+
     // MARK: - UIViewRepresentable
 
     func makeUIView(context: Context) -> MKMapView {
@@ -41,6 +44,8 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         // 保存引用到 Coordinator
         context.coordinator.territoryManager = territoryManager
+        context.coordinator.buildingManager = buildingManager
+        context.coordinator.onBuildingTap = onBuildingTap
 
         // 初始区域（如果有位置则使用，否则用默认）
         if let location = locationManager.currentLocation {
@@ -124,6 +129,8 @@ struct MapViewRepresentable: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
 
         weak var territoryManager: TerritoryManager?
+        weak var buildingManager: BuildingManager?
+        var onBuildingTap: ((PlayerBuilding) -> Void)?
 
         // 领地 Overlay（支持圆形和多边形）
         private var myTerritoryOverlays: [UUID: MKOverlay] = [:]       // 我的领地
@@ -598,6 +605,26 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
 
             return annotationView
+        }
+
+        // MARK: - 点击标注处理
+
+        func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
+            // 跳过用户位置
+            if annotation is MKUserLocation { return }
+
+            // 建筑标注点击
+            if let buildingAnnotation = annotation as? BuildingMapAnnotation {
+                print("🏗️ [Coordinator] 点击建筑: \(buildingAnnotation.name)")
+
+                // 查找对应的建筑数据
+                if let building = buildingManager?.playerBuildings.first(where: { $0.id == buildingAnnotation.id }) {
+                    // 取消选中状态（避免持续高亮）
+                    mapView.deselectAnnotation(annotation, animated: true)
+                    // 触发回调
+                    onBuildingTap?(building)
+                }
+            }
         }
     }
 }

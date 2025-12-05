@@ -118,6 +118,12 @@ class TerritoryManager: ObservableObject {
     let maximumRadius: Double = 200.0
     let nearbyQueryRadius: Double = 5000  // 附近查询半径5公里
 
+    // ✅ 缓存标记（避免重复网络请求）
+    private var hasLoadedMyTerritories = false
+    private var lastNearbyQueryLocation: CLLocation?
+    private var lastNearbyQueryTime: Date?
+    private let nearbyQueryCacheTime: TimeInterval = 30  // 30秒缓存
+
     // MARK: - Supabase 客户端
     private var supabase: SupabaseClient {
         return SupabaseManager.shared.client
@@ -466,7 +472,14 @@ class TerritoryManager: ObservableObject {
     // MARK: - Supabase 查询
 
     /// 查询我的所有领地
+    /// ✅ 优化：已加载过则直接返回缓存
     func queryMyTerritories() async {
+        // ✅ 如果已加载过，直接返回
+        if hasLoadedMyTerritories && !territories.isEmpty {
+            print("✅ [TerritoryManager] 使用缓存的我的领地: \(territories.count)块")
+            return
+        }
+
         guard let userId = currentUserId else {
             print("❌ [TerritoryManager] 用户未登录，无法查询领地")
             return
@@ -489,6 +502,7 @@ class TerritoryManager: ObservableObject {
             let fetchedTerritories = try decoder.decode([Territory].self, from: response.data)
 
             territories = fetchedTerritories
+            hasLoadedMyTerritories = true
             print("✅ [TerritoryManager] 查询到 \(fetchedTerritories.count) 块我的领地")
 
         } catch {
@@ -501,7 +515,22 @@ class TerritoryManager: ObservableObject {
 
     /// 查询附近所有领地（包括他人）
     /// 使用边界框快速过滤
+    /// ✅ 优化：30秒内同位置不重复查询
     func queryNearbyTerritories(center: CLLocation, radius: Double? = nil) async {
+        // ✅ 检查缓存：30秒内同位置不重复查询
+        if let lastLocation = lastNearbyQueryLocation,
+           let lastTime = lastNearbyQueryTime,
+           !nearbyTerritories.isEmpty {
+            let timeSinceLastQuery = Date().timeIntervalSince(lastTime)
+            let distanceFromLastQuery = center.distance(from: lastLocation)
+
+            // 30秒内且位置变化小于100米，使用缓存
+            if timeSinceLastQuery < nearbyQueryCacheTime && distanceFromLastQuery < 100 {
+                print("✅ [TerritoryManager] 使用缓存的附近领地: \(nearbyTerritories.count)块 (距上次查询: \(Int(timeSinceLastQuery))秒)")
+                return
+            }
+        }
+
         let queryRadius = radius ?? nearbyQueryRadius
 
         // 计算边界框
@@ -537,6 +566,8 @@ class TerritoryManager: ObservableObject {
             let fetchedTerritories = try decoder.decode([Territory].self, from: response.data)
 
             nearbyTerritories = fetchedTerritories
+            lastNearbyQueryLocation = center
+            lastNearbyQueryTime = Date()
             print("✅ [TerritoryManager] 查询到 \(fetchedTerritories.count) 块附近领地")
 
         } catch {

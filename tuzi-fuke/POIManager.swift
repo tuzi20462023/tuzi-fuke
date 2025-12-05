@@ -149,13 +149,18 @@ class POIManager: ObservableObject {
         // 步骤3: 预先标记当前已在 100 米范围内的 POI（防止首次探索立即弹窗）
         markNearbyPOIsAsTriggered(location: location)
 
-        // 步骤4: 异步提交 MapKit 候选给后端（不阻塞主流程）
-        Task {
-            let candidateCount = await searchAndSubmitCandidates(location: location, userId: userId)
-            if candidateCount > 0 {
-                appLog(.info, category: "POI", message: "✅ 已提交 \(candidateCount) 个 POI 候选到后端处理")
-            }
-        }
+        // ⚠️ 步骤4已禁用: MapKit 搜索会严重影响启动性能（1分钟+白屏）
+        // POI 应由后端 Edge Function 预生成，客户端只负责查询数据库
+        // 参考原项目 tuzi-earthlord 的实现方式
+        //
+        // 如需手动触发 POI 候选提交，可在设置页面添加按钮调用：
+        // Task {
+        //     let candidateCount = await searchAndSubmitCandidates(location: location, userId: userId)
+        //     if candidateCount > 0 {
+        //         appLog(.info, category: "POI", message: "✅ 已提交 \(candidateCount) 个 POI 候选到后端处理")
+        //     }
+        // }
+        appLog(.info, category: "POI", message: "⏭️ 跳过 MapKit 搜索（性能优化），POI 由后端生成")
 
         hasSubmittedCandidates = true
         isLoading = false
