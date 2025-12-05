@@ -52,6 +52,75 @@ struct BuildingTemplate: Identifiable, Codable {
         case createdAt = "created_at"
     }
 
+    /// 常规初始化器（用于预览和测试）
+    init(
+        id: UUID,
+        templateId: String,
+        name: String,
+        tier: Int,
+        category: NewBuildingCategory,
+        description: String?,
+        icon: String,
+        requiredLevel: Int,
+        requiredResources: [String: Int],
+        buildTimeHours: Double,
+        effects: [String: AnyCodableValue],
+        maxPerTerritory: Int,
+        maxLevel: Int = 5,
+        durabilityMax: Int,
+        isActive: Bool,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.templateId = templateId
+        self.name = name
+        self.tier = tier
+        self.category = category
+        self.description = description
+        self.icon = icon
+        self.requiredLevel = requiredLevel
+        self.requiredResources = requiredResources
+        self.buildTimeHours = buildTimeHours
+        self.effects = effects
+        self.maxPerTerritory = maxPerTerritory
+        self.maxLevel = maxLevel
+        self.durabilityMax = durabilityMax
+        self.isActive = isActive
+        self.createdAt = createdAt
+    }
+
+    /// 自定义解码器 - 处理 build_time_hours 可能是字符串或数字
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        templateId = try container.decode(String.self, forKey: .templateId)
+        name = try container.decode(String.self, forKey: .name)
+        tier = try container.decode(Int.self, forKey: .tier)
+        category = try container.decode(NewBuildingCategory.self, forKey: .category)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        icon = try container.decode(String.self, forKey: .icon)
+        requiredLevel = try container.decode(Int.self, forKey: .requiredLevel)
+        requiredResources = try container.decode([String: Int].self, forKey: .requiredResources)
+
+        // ✅ 处理 build_time_hours 可能是字符串或数字
+        if let doubleValue = try? container.decode(Double.self, forKey: .buildTimeHours) {
+            buildTimeHours = doubleValue
+        } else if let stringValue = try? container.decode(String.self, forKey: .buildTimeHours),
+                  let doubleValue = Double(stringValue) {
+            buildTimeHours = doubleValue
+        } else {
+            buildTimeHours = 1.0  // 默认1小时
+        }
+
+        effects = try container.decode([String: AnyCodableValue].self, forKey: .effects)
+        maxPerTerritory = try container.decode(Int.self, forKey: .maxPerTerritory)
+        maxLevel = try container.decodeIfPresent(Int.self, forKey: .maxLevel) ?? 5
+        durabilityMax = try container.decode(Int.self, forKey: .durabilityMax)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
+
     /// 格式化建造时间显示
     var formattedBuildTime: String {
         if buildTimeHours < 1 {
@@ -74,11 +143,12 @@ struct BuildingTemplate: Identifiable, Codable {
 // MARK: - 新建筑分类 (DAY8)
 
 enum NewBuildingCategory: String, Codable, CaseIterable {
-    case survival = "survival"       // 生存
-    case storage = "storage"         // 存储
-    case production = "production"   // 生产
-    case energy = "energy"           // 能源
-    case defense = "defense"         // 防御
+    case survival = "survival"           // 生存
+    case storage = "storage"             // 存储
+    case production = "production"       // 生产
+    case energy = "energy"               // 能源
+    case defense = "defense"             // 防御
+    case communication = "communication" // 通讯
 
     var displayName: String {
         switch self {
@@ -87,6 +157,7 @@ enum NewBuildingCategory: String, Codable, CaseIterable {
         case .production: return "生产"
         case .energy: return "能源"
         case .defense: return "防御"
+        case .communication: return "通讯"
         }
     }
 
@@ -97,6 +168,7 @@ enum NewBuildingCategory: String, Codable, CaseIterable {
         case .production: return "hammer.fill"
         case .energy: return "bolt.fill"
         case .defense: return "shield.fill"
+        case .communication: return "antenna.radiowaves.left.and.right"
         }
     }
 
@@ -107,6 +179,7 @@ enum NewBuildingCategory: String, Codable, CaseIterable {
         case .production: return "green"
         case .energy: return "yellow"
         case .defense: return "red"
+        case .communication: return "purple"
         }
     }
 }
