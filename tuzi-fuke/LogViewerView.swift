@@ -167,10 +167,18 @@ struct LogViewerView: View {
 // MARK: - 分享Sheet
 
 struct ShareSheet: UIViewControllerRepresentable {
-    let text: String
+    let items: [Any]
+
+    init(text: String) {
+        self.items = [text]
+    }
+
+    init(items: [Any]) {
+        self.items = items
+    }
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}

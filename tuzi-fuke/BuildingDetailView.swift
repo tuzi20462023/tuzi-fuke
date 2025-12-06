@@ -25,6 +25,9 @@ struct BuildingDetailView: View {
     @State private var demolishResult: BuildingDemolitionResult?
     @State private var showResultAlert = false
 
+    // 打卡相关状态
+    @State private var showCheckinView = false
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -277,6 +280,32 @@ struct BuildingDetailView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 12) {
+            // 打卡按钮（仅激活状态可用）
+            if building.status == .active {
+                Button {
+                    showCheckinView = true
+                } label: {
+                    HStack {
+                        Image(systemName: "camera.fill")
+                        Text("AI打卡")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        LinearGradient(
+                            colors: [.purple, .blue],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .sheet(isPresented: $showCheckinView) {
+                    CheckinView(building: building)
+                }
+            }
+
             // 升级按钮（仅激活状态可用）
             if building.status == .active {
                 Button {
