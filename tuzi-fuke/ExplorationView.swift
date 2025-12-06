@@ -452,6 +452,16 @@ struct ExplorationResultSheet: View {
                 discoveredPOIs: result.session.discoveredPOIs
             )
 
+            // 将物品存入背包
+            if !loot.items.isEmpty {
+                let success = await InventoryManager.shared.addItems(loot.items)
+                if success {
+                    print("📦 [Exploration] \(loot.items.count) 种物品已存入背包")
+                } else {
+                    print("⚠️ [Exploration] 物品存入背包失败")
+                }
+            }
+
             await MainActor.run {
                 self.lootResult = loot
                 self.isLoadingLoot = false

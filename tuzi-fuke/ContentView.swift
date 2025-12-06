@@ -70,7 +70,7 @@ struct ContentView: View {
                     territoryManager: territoryManager,
                     authManager: authManager,
                     explorationManager: explorationManager,
-                    switchToDebugTab: { selectedTab = 4 }  // 调试Tab改为4
+                    switchToDebugTab: { selectedTab = 5 }  // 调试Tab改为5
                 )
                 .navigationTitle(authManager.currentUser?.email ?? "地图")
                 .navigationBarTitleDisplayMode(.inline)
@@ -120,29 +120,37 @@ struct ContentView: View {
                 }
                 .tag(2)
 
-            // Tab 4: 聊天（通信系统）
+            // Tab 4: 背包
+            BackpackView()
+                .tabItem {
+                    Image(systemName: "bag.fill")
+                    Text("背包")
+                }
+                .tag(3)
+
+            // Tab 5: 聊天（通信系统）
             CommunicationHubView()
                 .tabItem {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
                     Text("通讯")
                 }
-                .tag(3)
+                .tag(4)
 
-            // Tab 5: 调试
+            // Tab 6: 调试
             TestManagersView()
                 .tabItem {
                     Image(systemName: "wrench.fill")
                     Text("调试")
                 }
-                .tag(4)
+                .tag(5)
 
-            // Tab 6: 日志
+            // Tab 7: 日志
             LogViewerView()
                 .tabItem {
                     Image(systemName: "doc.text.fill")
                     Text("日志")
                 }
-                .tag(5)
+                .tag(6)
         }
     }
 }

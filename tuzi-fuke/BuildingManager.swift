@@ -531,7 +531,7 @@ class BuildingManager: ObservableObject {
 
     /// 检查是否可以建造某个建筑
     func canBuild(template: BuildingTemplate, territoryId: UUID) -> (canBuild: Bool, error: BuildingConstructionError?) {
-        // 简化版：暂时不检查资源，只检查数量限制
+        // 检查数量限制
         let existingCount = playerBuildings.filter {
             $0.territoryId == territoryId &&
             $0.buildingTemplateKey == template.templateId &&
@@ -540,6 +540,14 @@ class BuildingManager: ObservableObject {
 
         if existingCount >= template.maxPerTerritory {
             return (false, .maxBuildingsReached(template.maxPerTerritory))
+        }
+
+        // 检查资源是否足够
+        let (enough, missing) = InventoryManager.shared.hasEnough(
+            resources: template.requiredResources
+        )
+        if !enough {
+            return (false, .insufficientResources(missing))
         }
 
         return (true, nil)
@@ -599,6 +607,21 @@ class BuildingManager: ObservableObject {
         }
 
         let buildCompleted = buildStarted.addingTimeInterval(actualBuildTimeSeconds)
+
+        // 消耗资源
+        let consumed = await InventoryManager.shared.consumeResources(
+            template.requiredResources,
+            source: "building:\(template.templateId)"
+        )
+
+        if !consumed {
+            return BuildingConstructionResult(
+                success: false,
+                building: nil,
+                error: .insufficientResources(template.requiredResources),
+                message: InventoryManager.shared.errorMessage ?? "资源不足"
+            )
+        }
 
         let locationJSON: GeoJSONPoint?
         if let loc = request.location {
