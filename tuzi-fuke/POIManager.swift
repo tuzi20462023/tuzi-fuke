@@ -52,22 +52,29 @@ struct RPCPOIModel: Decodable, Sendable {
 
 // MARK: - POI 搜索配置
 
-/// POI 搜索关键词配置（用于 MapKit 搜索提交候选）
+/// POI 搜索关键词配置（用于 MapKit 搜索提交候选）- 旅行风格
 private struct POISearchConfig {
     let type: POIType
     let keywords: [String]
     let radius: Double  // 搜索半径（米）
 
     static let all: [POISearchConfig] = [
-        POISearchConfig(type: .hospital, keywords: ["医院", "诊所", "卫生院"], radius: 2000),
-        POISearchConfig(type: .pharmacy, keywords: ["药店", "药房", "大药房"], radius: 1000),
-        POISearchConfig(type: .supermarket, keywords: ["超市", "华润万家", "沃尔玛", "永辉"], radius: 1500),
-        POISearchConfig(type: .convenienceStore, keywords: ["便利店", "美宜佳", "7-11", "全家"], radius: 800),
-        POISearchConfig(type: .restaurant, keywords: ["餐厅", "饭店", "小吃", "兰州拉面", "沙县小吃"], radius: 1000),
-        POISearchConfig(type: .school, keywords: ["学校", "大学", "中学", "小学"], radius: 2000),
-        POISearchConfig(type: .park, keywords: ["公园", "广场"], radius: 2000),
-        POISearchConfig(type: .gasStation, keywords: ["加油站", "中石油", "中石化"], radius: 3000),
-        POISearchConfig(type: .bank, keywords: ["银行", "ATM"], radius: 1000),
+        // 咖啡店 - 城市漫步必备
+        POISearchConfig(type: .cafe, keywords: ["咖啡", "咖啡店", "咖啡馆", "星巴克", "瑞幸", "Manner"], radius: 1000),
+        // 书店 - 文艺探索
+        POISearchConfig(type: .bookstore, keywords: ["书店", "书城", "书屋", "西西弗", "新华书店", "诚品"], radius: 1500),
+        // 公园 - 自然漫步
+        POISearchConfig(type: .park, keywords: ["公园", "广场", "花园", "绿地", "湿地公园"], radius: 2000),
+        // 餐厅 - 美食探索
+        POISearchConfig(type: .restaurant, keywords: ["餐厅", "美食", "特色菜", "网红店", "老字号"], radius: 1000),
+        // 景点 - 文化探索
+        POISearchConfig(type: .attraction, keywords: ["景点", "博物馆", "纪念馆", "古迹", "展览馆", "美术馆"], radius: 2500),
+        // 商场 - 城市购物
+        POISearchConfig(type: .mall, keywords: ["商场", "购物中心", "百货", "万象城", "万达"], radius: 2000),
+        // 便利店 - 街角小店
+        POISearchConfig(type: .convenienceStore, keywords: ["便利店", "美宜佳", "7-11", "全家", "罗森"], radius: 800),
+        // 健身房 - 运动打卡
+        POISearchConfig(type: .gym, keywords: ["健身房", "健身中心", "游泳馆", "运动中心", "瑜伽"], radius: 1500),
     ]
 }
 

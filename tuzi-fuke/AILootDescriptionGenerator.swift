@@ -2,7 +2,8 @@
 //  AILootDescriptionGenerator.swift
 //  tuzi-fuke
 //
-//  AI 物资描述生成器 - 根据探索数据生成末世风格的物资发现叙述
+//  AI 物资描述生成器 - 根据探索数据生成旅行风格的探索日记
+//  使用通义千问 (Qwen) API
 //
 
 import Foundation
@@ -11,9 +12,9 @@ import Combine
 // MARK: - 探索物资结果
 
 struct ExplorationLoot: Codable {
-    let narrative: String           // AI生成的叙述文本
+    let narrative: String           // AI生成的探索日记
     let items: [LootItem]           // 发现的物资列表
-    let mood: String                // 氛围：tense/hopeful/dangerous
+    let mood: String                // 氛围：relaxed/excited/peaceful/adventurous
 }
 
 struct LootItem: Codable, Identifiable {
@@ -49,11 +50,13 @@ class AILootDescriptionGenerator: ObservableObject {
     ///   - distance: 行走距离（米）
     ///   - area: 探索面积（平方米）
     ///   - duration: 探索时长（秒）
+    ///   - discoveredPOIs: 本次探索发现的POI列表
     /// - Returns: 探索物资结果
     func generateLootDescription(
         distance: Double,
         area: Double,
-        duration: TimeInterval
+        duration: TimeInterval,
+        discoveredPOIs: [DiscoveredPOIInfo] = []
     ) async -> ExplorationLoot {
 
         isGenerating = true
@@ -67,16 +70,24 @@ class AILootDescriptionGenerator: ObservableObject {
         let mood: String
 
         do {
-            let aiResult = try await callAIAPI(distance: distance, area: area, duration: duration, items: items)
+            appLog(.info, category: "AI", message: "开始调用通义千问 API...")
+            appLog(.info, category: "AI", message: "探索数据: 距离=\(String(format: "%.1f", distance))米, 面积=\(String(format: "%.0f", area))m², 时长=\(Int(duration))秒")
+            appLog(.info, category: "AI", message: "物资数量: \(items.count)种, POI数量: \(discoveredPOIs.count)个")
+
+            let aiResult = try await callAIAPI(distance: distance, area: area, duration: duration, items: items, discoveredPOIs: discoveredPOIs)
             narrative = aiResult.narrative
             mood = aiResult.mood
+
+            appLog(.success, category: "AI", message: "通义千问生成成功! 氛围: \(mood)")
+            appLog(.info, category: "AI", message: "叙述: \(String(narrative.prefix(50)))...")
         } catch {
             // AI 调用失败，使用本地模板
-            print("⚠️ [AI] 调用失败，使用本地模板: \(error.localizedDescription)")
+            appLog(.warning, category: "AI", message: "调用失败: \(error.localizedDescription)")
             lastError = error.localizedDescription
-            let localResult = generateLocalNarrative(distance: distance, area: area, duration: duration, items: items)
+            let localResult = generateLocalNarrative(distance: distance, area: area, duration: duration, items: items, discoveredPOIs: discoveredPOIs)
             narrative = localResult.narrative
             mood = localResult.mood
+            appLog(.info, category: "AI", message: "使用本地模板")
         }
 
         isGenerating = false
@@ -90,21 +101,20 @@ class AILootDescriptionGenerator: ObservableObject {
 
     // MARK: - 本地物资计算
 
-    /// 根据探索数据计算物资掉落
+    /// 根据探索数据计算物资掉落（旅行版建造材料）
     private func calculateLocalLoot(distance: Double, area: Double, duration: TimeInterval) -> [LootItem] {
         var items: [LootItem] = []
 
-        // 基础掉落池
+        // 旅行版物资掉落池（建造材料）
         let lootPool: [(name: String, icon: String, baseChance: Double)] = [
-            ("矿泉水", "drop.fill", 0.8),
-            ("罐头食品", "takeoutbag.and.cup.and.straw.fill", 0.6),
-            ("废金属", "gearshape.fill", 0.7),
-            ("布料", "tshirt.fill", 0.5),
-            ("木材", "leaf.fill", 0.6),
-            ("绳索", "link", 0.4),
-            ("医疗包", "cross.case.fill", 0.2),
-            ("电池", "battery.100", 0.3),
-            ("工具零件", "wrench.fill", 0.35),
+            ("木材", "tree.fill", 0.8),           // 基础建筑材料
+            ("石材", "mountain.2.fill", 0.7),     // 基础建筑材料
+            ("钢材", "wrench.and.screwdriver.fill", 0.4),  // 高级建筑
+            ("玻璃", "window.vertical.closed", 0.5),       // 装饰建筑
+            ("金币", "dollarsign.circle.fill", 0.6),      // 通用货币
+            ("蓝图", "doc.plaintext.fill", 0.25),  // 解锁建筑
+            ("装饰品", "paintpalette.fill", 0.45), // 美化建筑
+            ("植物", "leaf.fill", 0.55),           // 环境美化
         ]
 
         // 距离系数：每500米增加一次掉落机会
@@ -139,8 +149,8 @@ class AILootDescriptionGenerator: ObservableObject {
 
         // 确保至少有2个物品
         if items.count < 2 {
-            items.append(LootItem(name: "矿泉水", quantity: Int.random(in: 2...5), icon: "drop.fill"))
-            items.append(LootItem(name: "废金属", quantity: Int.random(in: 3...8), icon: "gearshape.fill"))
+            items.append(LootItem(name: "木材", quantity: Int.random(in: 3...8), icon: "tree.fill"))
+            items.append(LootItem(name: "石材", quantity: Int.random(in: 2...6), icon: "mountain.2.fill"))
         }
 
         print("🎲 [Loot] 最终掉落: \(items.count)种物品")
@@ -154,51 +164,59 @@ class AILootDescriptionGenerator: ObservableObject {
         distance: Double,
         area: Double,
         duration: TimeInterval,
-        items: [LootItem]
+        items: [LootItem],
+        discoveredPOIs: [DiscoveredPOIInfo]
     ) async throws -> (narrative: String, mood: String) {
 
         // 构建物资列表文本
         let itemsText = items.map { "\($0.name) x \($0.quantity)" }.joined(separator: "、")
 
-        // 构建提示词
+        // 构建发现的POI列表文本
+        let poiText: String
+        if discoveredPOIs.isEmpty {
+            poiText = "无"
+        } else {
+            poiText = discoveredPOIs.map { "\($0.name)（\($0.type)）" }.joined(separator: "、")
+        }
+
+        // 构建提示词（旅行风格，包含POI信息）
         let prompt = """
-        你是一个末世生存游戏的叙事助手。玩家刚完成一次探索，数据如下：
+        你是一个旅行探索 App 的叙事助手。用户刚完成一次城市漫步，数据如下：
         - 行走距离：\(String(format: "%.1f", distance / 1000)) 公里
         - 探索面积：\(String(format: "%.0f", area)) 平方米
         - 探索时长：\(Int(duration / 60)) 分钟
-        - 发现物资：\(itemsText)
+        - 途经地点：\(poiText)
+        - 收集物资：\(itemsText)
 
-        请生成一段 60-100 字的第一人称叙述，描述玩家如何在废墟中发现这些物资。
-        要求：末世求生风格、紧张刺激、有画面感。
+        请生成一段 60-100 字的探索日记，要求：
+        - 第一人称视角
+        - 温暖治愈的文风，描述城市漫步的美好
+        - 如果有途经地点，请自然地融入叙述中（如"路过了XX"、"在XX附近停留"等）
+        - 有画面感，描述阳光、微风、街道等细节
 
-        只返回叙述文本，不要其他内容。
+        只返回日记文本，不要其他内容。
         """
-
-        // TODO: 替换为实际的 AI API 调用
-        // 这里先用模拟延迟 + 本地模板
-        // 实际使用时替换为 Claude API 或 OpenAI API
 
         // 检查是否配置了 API Key
         guard let apiKey = getAIAPIKey(), !apiKey.isEmpty else {
             throw AIError.noAPIKey
         }
 
-        // 调用 Claude API
-        return try await callClaudeAPI(prompt: prompt, apiKey: apiKey)
+        // 调用通义千问 API
+        return try await callQwenAPI(prompt: prompt, apiKey: apiKey)
     }
 
-    /// 调用 Claude API
-    private func callClaudeAPI(prompt: String, apiKey: String) async throws -> (narrative: String, mood: String) {
-        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+    /// 调用通义千问 (Qwen) API
+    private func callQwenAPI(prompt: String, apiKey: String) async throws -> (narrative: String, mood: String) {
+        let url = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let body: [String: Any] = [
-            "model": "claude-3-haiku-20240307",
+            "model": "qwen-turbo",
             "max_tokens": 300,
             "messages": [
                 ["role": "user", "content": prompt]
@@ -211,28 +229,34 @@ class AILootDescriptionGenerator: ObservableObject {
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            throw AIError.apiError("API 响应错误")
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw AIError.apiError("API 响应错误 (状态码: \(statusCode))")
         }
 
-        // 解析响应
-        struct ClaudeResponse: Codable {
-            struct Content: Codable {
-                let text: String
+        // 解析响应（OpenAI 兼容格式）
+        struct QwenResponse: Codable {
+            struct Choice: Codable {
+                struct Message: Codable {
+                    let content: String
+                }
+                let message: Message
             }
-            let content: [Content]
+            let choices: [Choice]
         }
 
-        let claudeResponse = try JSONDecoder().decode(ClaudeResponse.self, from: data)
-        let narrative = claudeResponse.content.first?.text ?? ""
+        let qwenResponse = try JSONDecoder().decode(QwenResponse.self, from: data)
+        let narrative = qwenResponse.choices.first?.message.content ?? ""
 
-        // 根据内容判断氛围
+        // 根据内容判断氛围（旅行风格）
         let mood: String
-        if narrative.contains("危险") || narrative.contains("紧张") || narrative.contains("小心") {
-            mood = "dangerous"
-        } else if narrative.contains("幸运") || narrative.contains("惊喜") || narrative.contains("收获") {
-            mood = "hopeful"
+        if narrative.contains("惊喜") || narrative.contains("发现") || narrative.contains("兴奋") {
+            mood = "excited"
+        } else if narrative.contains("宁静") || narrative.contains("安静") || narrative.contains("静谧") {
+            mood = "peaceful"
+        } else if narrative.contains("冒险") || narrative.contains("探索") || narrative.contains("未知") {
+            mood = "adventurous"
         } else {
-            mood = "tense"
+            mood = "relaxed"
         }
 
         return (narrative, mood)
@@ -241,12 +265,12 @@ class AILootDescriptionGenerator: ObservableObject {
     /// 获取 AI API Key（从配置或环境变量）
     private func getAIAPIKey() -> String? {
         // 优先从 UserDefaults 读取
-        if let key = UserDefaults.standard.string(forKey: "AI_API_KEY"), !key.isEmpty {
+        if let key = UserDefaults.standard.string(forKey: "QWEN_API_KEY"), !key.isEmpty {
             return key
         }
 
         // 其次从环境变量读取
-        if let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !key.isEmpty {
+        if let key = ProcessInfo.processInfo.environment["QWEN_API_KEY"], !key.isEmpty {
             return key
         }
 
@@ -255,31 +279,46 @@ class AILootDescriptionGenerator: ObservableObject {
 
     // MARK: - 本地叙述生成（备用）
 
-    /// 本地生成叙述（AI 不可用时的备用方案）
+    /// 本地生成叙述（AI 不可用时的备用方案）- 旅行风格
     private func generateLocalNarrative(
         distance: Double,
         area: Double,
         duration: TimeInterval,
-        items: [LootItem]
+        items: [LootItem],
+        discoveredPOIs: [DiscoveredPOIInfo]
     ) -> (narrative: String, mood: String) {
 
         let distanceKm = distance / 1000
         let durationMin = Int(duration / 60)
 
-        // 叙述模板池
+        // 如果有发现POI，生成包含POI的叙述
+        if !discoveredPOIs.isEmpty {
+            let poiNames = discoveredPOIs.prefix(2).map { $0.name }.joined(separator: "、")
+            let templates = [
+                "阳光正好，我沿着街道漫步了\(durationMin)分钟。途经\(poiNames)，感受到城市的烟火气。背包里装满了今天的收获，心情格外愉快。",
+                "这次漫步走了\(String(format: "%.1f", distanceKm))公里。路过\(poiNames)，在熟悉的街角发现了新的风景。城市的角落总有温暖的惊喜。",
+                "微风拂面，我在这片街区探索了\(durationMin)分钟。在\(poiNames)附近停留，感受这座城市的脉搏。收获满满的一天。"
+            ]
+            let narrative = templates.randomElement() ?? templates[0]
+            let moods = ["relaxed", "excited", "peaceful", "adventurous"]
+            let mood = moods.randomElement() ?? "relaxed"
+            return (narrative, mood)
+        }
+
+        // 没有POI时使用通用模板
         let templates = [
-            "穿过一片废墟，我在倒塌的建筑里搜寻了\(durationMin)分钟。破碎的窗户外传来不明的声响，我加快了脚步。还好，背包里多了些补给。",
-            "这次探索走了将近\(String(format: "%.1f", distanceKm))公里。在一家废弃的商店里，我找到了一些有用的东西。外面的世界越来越危险，但活下去的希望也在。",
-            "阳光透过残破的天花板照进来。我翻遍了每一个角落，\(durationMin)分钟后，终于有了收获。这些物资能让我再撑一段时间。",
-            "废墟中弥漫着灰尘的味道。我小心翼翼地前进，生怕惊动什么。\(String(format: "%.1f", distanceKm))公里的路程，换来了背包里沉甸甸的重量。值了。",
-            "又是一次冒险的探索。穿过狭窄的巷道，避开可疑的阴影，我在这片区域搜刮了\(durationMin)分钟。收获不错，但我知道，明天还要继续。"
+            "阳光正好，我沿着街道漫步了\(durationMin)分钟。路过一家咖啡店，香气扑鼻而来。背包里装满了今天的收获，心情格外愉快。",
+            "这次漫步走了\(String(format: "%.1f", distanceKm))公里。穿过公园的林荫道，看见老人在下棋，孩子在嬉戏。城市的角落总有温暖的风景。",
+            "微风拂面，我在这片街区探索了\(durationMin)分钟。发现了一家藏在巷子里的小书店，翻了几页喜欢的书。收获满满的一天。",
+            "走过\(String(format: "%.1f", distanceKm))公里的路程，脚步轻快。街角的花店、转角的面包房，每一处都是城市的小确幸。今天的漫步很值得。",
+            "又是一次愉快的城市探索。\(durationMin)分钟的漫步，遇见了熟悉又陌生的街景。阳光洒在肩上，背包里是今天的战利品。"
         ]
 
         let narrative = templates.randomElement() ?? templates[0]
 
-        // 随机氛围
-        let moods = ["tense", "hopeful", "dangerous"]
-        let mood = moods.randomElement() ?? "tense"
+        // 旅行风格随机氛围
+        let moods = ["relaxed", "excited", "peaceful", "adventurous"]
+        let mood = moods.randomElement() ?? "relaxed"
 
         return (narrative, mood)
     }
@@ -308,17 +347,17 @@ enum AIError: Error, LocalizedError {
 
 extension AILootDescriptionGenerator {
 
-    /// 设置 AI API Key
+    /// 设置通义千问 API Key
     static func setAPIKey(_ key: String) {
-        UserDefaults.standard.set(key, forKey: "AI_API_KEY")
+        UserDefaults.standard.set(key, forKey: "QWEN_API_KEY")
     }
 
     /// 检查是否已配置 API Key
     static var hasAPIKey: Bool {
-        if let key = UserDefaults.standard.string(forKey: "AI_API_KEY"), !key.isEmpty {
+        if let key = UserDefaults.standard.string(forKey: "QWEN_API_KEY"), !key.isEmpty {
             return true
         }
-        if let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !key.isEmpty {
+        if let key = ProcessInfo.processInfo.environment["QWEN_API_KEY"], !key.isEmpty {
             return true
         }
         return false

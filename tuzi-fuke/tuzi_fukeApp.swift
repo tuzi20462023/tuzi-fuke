@@ -91,9 +91,13 @@ extension tuzi_fukeApp {
         let _ = LocationManager.shared
         let _ = DataManager.shared
 
+        // 配置通义千问 API Key
+        AILootDescriptionGenerator.setAPIKey("sk-6f72d30a99bd4f2c9ec3426483440f04")
+
         print("🔐 [App] AuthManager已初始化")
         print("📍 [App] LocationManager已初始化")
         print("💾 [App] DataManager已初始化")
+        print("🤖 [App] AI (通义千问) 已配置")
         print("📱 [App] MapKit已导入")
         print("🗺️ [App] CoreLocation已导入")
 

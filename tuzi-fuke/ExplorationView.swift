@@ -448,7 +448,8 @@ struct ExplorationResultSheet: View {
             let loot = await aiGenerator.generateLootDescription(
                 distance: result.session.totalDistance,
                 area: result.session.totalArea,
-                duration: result.session.endedAt?.timeIntervalSince(result.session.startedAt) ?? 0
+                duration: result.session.endedAt?.timeIntervalSince(result.session.startedAt) ?? 0,
+                discoveredPOIs: result.session.discoveredPOIs
             )
 
             await MainActor.run {
@@ -458,15 +459,17 @@ struct ExplorationResultSheet: View {
         }
     }
 
-    // 根据氛围返回背景颜色
+    // 根据氛围返回背景颜色（旅行风格）
     private func narrativeBackground(mood: String) -> Color {
         switch mood {
-        case "dangerous":
-            return Color.red.opacity(0.1)
-        case "hopeful":
-            return Color.green.opacity(0.1)
-        default:
+        case "excited":
             return Color.orange.opacity(0.1)
+        case "peaceful":
+            return Color.blue.opacity(0.1)
+        case "adventurous":
+            return Color.purple.opacity(0.1)
+        default: // relaxed
+            return Color.green.opacity(0.1)
         }
     }
 }
