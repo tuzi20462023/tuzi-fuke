@@ -301,7 +301,7 @@ struct SimpleMapView: View {
 
         // 立即检查一次
         checkPathCollisionComprehensive(userId: userId)
-
+ 
         // 启动定时器
         collisionCheckTimer = Timer.scheduledTimer(withTimeInterval: collisionCheckInterval, repeats: true) { _ in
             Task { @MainActor in
