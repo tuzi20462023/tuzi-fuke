@@ -1,6 +1,6 @@
 # 开发进展记录
 
-**最后更新**: 2025年12月3日
+**最后更新**: 2025年12月6日
 
 ---
 
@@ -11,7 +11,8 @@
 | **圈地功能** | ✅ 已完成 | 已合并到 main | L1-L4 已验证，L5-L6 待实测 |
 | **探索功能** | 🚧 待开发 | feature/explore | 新分支已创建 |
 | **通信功能** | 🚧 开发中 | feature/communication-L4-L5 已合并 | L2官方频道+L4附近玩家+L5私聊 已完成 |
-| **建筑功能** | 🚧 开发中 | feature/building-system 已合并 | L1-L4 核心功能已完成 |
+| **建筑功能** | 🚧 开发中 | feature/building-system | L1-L4 核心功能已完成 |
+| **AI打卡功能** | 🚧 开发中 | feature/building-system | 基础功能已完成，提示词待优化 |
 
 ---
 
@@ -328,7 +329,152 @@ Button {
 
 ---
 
+## AI 打卡明信片功能完成情况 (2025-12-05~06)
+
+### 深度完成表
+
+| 层级 | 模块 | 功能 | 状态 |
+|------|------|------|------|
+| **L1 基础** | Edge Function | generate-checkin-image 函数 | ✅ |
+| **L1 基础** | Gemini API 调用 | @google/genai SDK | ✅ |
+| **L1 基础** | 图片上传 | Supabase Storage | ✅ |
+| **L2 iOS端** | GeminiService | 调用 Edge Function | ✅ |
+| **L2 iOS端** | CheckinManager | 打卡管理器 | ✅ |
+| **L2 iOS端** | CheckinView | 打卡界面 | ✅ |
+| **L3 头像** | AvatarManager | 头像上传管理 | ✅ |
+| **L3 头像** | AvatarSettingsView | 头像设置界面 | ✅ |
+| **L4 缓存** | CheckinDataStore | SwiftData 本地缓存 | ✅ |
+| **L4 缓存** | 后台同步 | 异步同步到云端 | ✅ |
+| **L5 优化** | 卡通风格提示词 | 生成动漫风格图片 | 🔴 待优化 |
+| **L5 优化** | 打卡界面UI | 界面美化和交互优化 | 🔴 待优化 |
+| **L5 优化** | 城市名称获取 | 动态获取城市名用于文字 | 🔴 待优化 |
+
+### 关键里程碑
+
+- **2025-12-05 晚**: 完成 AI 打卡基础功能
+  - 创建 Edge Function 调用 Gemini API
+  - 实现 iOS 端调用和图片展示
+  - 实现头像上传和管理
+
+- **2025-12-06 凌晨**: 完成本地缓存和提示词优化
+  - 实现 SwiftData 本地缓存
+  - 实现后台异步同步
+  - 多次优化卡通风格提示词（仍有问题）
+
+### 待优化项目
+
+#### 1. 卡通风格提示词优化 🔴
+
+**当前问题**: 提示词明确要求卡通/动漫风格，但 Gemini 仍然生成写实照片风格。
+
+**已尝试的方案**:
+- 使用警告符号 ⚠️🚨 强调
+- 多次重复 "NOT a photo"
+- 给具体参考（吉卜力、新海诚、迪士尼）
+- 描述卡通特征（大眼睛、简化五官、cell-shading）
+- 两层提示词双重强调
+
+**可能的原因**:
+- 传入真人头像时，Gemini 倾向保持"真实感"
+- 模型对卡通风格的理解与预期不同
+
+**后续方案**:
+- [ ] 尝试不传头像，只生成卡通风景
+- [ ] 尝试用文字描述人物特征代替照片
+- [ ] 尝试分两步：先生成背景，再用其他方式处理人物
+- [ ] 研究其他 AI 模型的卡通化能力
+
+#### 2. 打卡界面 UI 优化 🔴
+
+**待优化内容**:
+- [ ] 生成中的加载动画和进度提示
+- [ ] 生成结果展示界面美化
+- [ ] 历史记录列表优化
+- [ ] 分享功能完善
+- [ ] 删除确认弹窗
+
+#### 3. 城市名称动态获取 🔴
+
+**当前问题**: 提示词中城市名硬编码为"惠州"
+
+**解决方案**:
+- [ ] iOS 端使用 CLGeocoder 反向地理编码获取城市名
+- [ ] 将城市名传给 Edge Function
+- [ ] 提示词中使用动态城市名
+
+```swift
+// 示例代码
+let geocoder = CLGeocoder()
+let placemarks = try await geocoder.reverseGeocodeLocation(location)
+let city = placemarks.first?.locality ?? "Unknown"
+```
+
+#### 4. 每日打卡次数限制 🟡
+
+**当前状态**: 数据库有 `daily_checkin_limits` 表，但前端限制逻辑需要验证。
+
+- [ ] 验证每日限制是否生效
+- [ ] 添加次数耗尽的提示
+- [ ] 添加次数刷新倒计时
+
+### 技术架构
+
+```
+用户点击建筑生成明信片
+        ↓
+iOS App (GeminiService)
+        ↓ HTTP POST (坐标 + 头像 base64)
+Supabase Edge Function (generate-checkin-image)
+        ↓ 调用 Gemini API (gemini-2.0-flash-exp)
+生成图片
+        ↓ 上传到 Storage (checkin-photos bucket)
+返回图片 URL
+        ↓
+保存到本地 SwiftData (状态: pending)
+        ↓
+UI 立即更新
+        ↓
+后台 Task 异步同步到 Supabase (checkin_photos 表)
+        ↓
+同步成功后更新状态为 synced
+```
+
+### 文件清单
+
+| 文件 | 用途 | 状态 |
+|------|------|------|
+| `supabase/functions/generate-checkin-image/index.ts` | Edge Function | ✅ |
+| `tuzi-fuke/GeminiService.swift` | API 调用 | ✅ |
+| `tuzi-fuke/CheckinManager.swift` | 打卡管理 | ✅ |
+| `tuzi-fuke/CheckinDataStore.swift` | 本地缓存 | ✅ |
+| `tuzi-fuke/CheckinModels.swift` | 数据模型 | ✅ |
+| `tuzi-fuke/CheckinView.swift` | 打卡界面 | 🔴 待优化 |
+| `tuzi-fuke/AvatarManager.swift` | 头像管理 | ✅ |
+| `tuzi-fuke/AvatarSettingsView.swift` | 头像设置 | ✅ |
+
+### 相关文档
+
+- 经验文档: `jingyan/20251206_ai_checkin_postcard_experience.md`
+- 教学文档: `jiaoxue/DAY10_AI_CHECKIN_POSTCARD_TUTORIAL.md`
+- 提示词手册: `jiaoxue/DAY10_AI_CHECKIN_POSTCARD_PROMPT.md`
+
+---
+
 ## 下一步计划
+
+### 建筑功能后续（优先）
+
+- [ ] **资源消耗检查** - 建造时扣除资源
+- [ ] **建筑升级逻辑** - 等级提升和效果增强
+- [ ] **维修功能** - 恢复耐久度
+- [ ] **拆除功能** - 确认弹窗 + 部分资源返还
+
+### AI 打卡功能后续（优先）
+
+- [ ] **卡通风格提示词优化** - 解决写实照片问题
+- [ ] **打卡界面 UI 优化** - 加载动画、结果展示、历史列表
+- [ ] **城市名称动态获取** - CLGeocoder 反向地理编码
+- [ ] **每日次数限制验证** - 确保限制生效
 
 ### 探索功能 (feature/explore)
 
@@ -357,7 +503,9 @@ Button {
 - 经验文档: `jingyan/20251201_realtime_collision_detection_experience.md`
 - 经验文档: `jingyan/20251202_direct_chat_experience.md`
 - 经验文档: `jingyan/20251203_building_system_experience.md`
+- 经验文档: `jingyan/20251206_ai_checkin_postcard_experience.md`
 - 教学文档: `jiaoxue/DAY4_CLAIMING_COLLISION_TUTORIAL.md`
 - 教学文档: `jiaoxue/DAY7_DIRECT_CHAT_TUTORIAL.md`
 - 教学文档: `jiaoxue/DAY8_BUILDING_SYSTEM_TUTORIAL.md`
+- 教学文档: `jiaoxue/DAY10_AI_CHECKIN_POSTCARD_TUTORIAL.md`
 - Git Worktree 经验: `jingyan/20251201_git_worktree_experience.md`
