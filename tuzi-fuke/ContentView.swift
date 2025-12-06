@@ -70,10 +70,32 @@ struct ContentView: View {
                     territoryManager: territoryManager,
                     authManager: authManager,
                     explorationManager: explorationManager,
-                    switchToDebugTab: { selectedTab = 5 }  // 调试Tab改为5（因为增加了"我的"Tab）
+                    switchToDebugTab: { selectedTab = 4 }  // 调试Tab改为4
                 )
                 .navigationTitle(authManager.currentUser?.email ?? "地图")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            // 显示当前用户
+                            if let user = authManager.currentUser {
+                                Text("当前用户: \(user.email ?? user.username)")
+                            }
+
+                            Divider()
+
+                            Button(role: .destructive) {
+                                Task {
+                                    await authManager.signOut()
+                                }
+                            } label: {
+                                Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
+                        } label: {
+                            Image(systemName: "person.circle")
+                        }
+                    }
+                }
             }
             .navigationViewStyle(.stack)
             .tabItem {
@@ -106,29 +128,21 @@ struct ContentView: View {
                 }
                 .tag(3)
 
-            // Tab 5: 我的（个人中心）
-            ProfileTabView()
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text("我的")
-                }
-                .tag(4)
-
-            // Tab 6: 调试
+            // Tab 5: 调试
             TestManagersView()
                 .tabItem {
                     Image(systemName: "wrench.fill")
                     Text("调试")
                 }
-                .tag(5)
+                .tag(4)
 
-            // Tab 7: 日志
+            // Tab 6: 日志
             LogViewerView()
                 .tabItem {
                     Image(systemName: "doc.text.fill")
                     Text("日志")
                 }
-                .tag(6)
+                .tag(5)
         }
     }
 }

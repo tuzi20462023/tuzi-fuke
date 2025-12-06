@@ -12,6 +12,12 @@ import SwiftUI
 import Combine
 import Supabase
 
+// MARK: - 错误类型
+
+struct TimeoutError: Error, LocalizedError {
+    var errorDescription: String? { "操作超时" }
+}
+
 // MARK: - 探索状态
 
 enum ExplorationState: Equatable {
@@ -50,6 +56,16 @@ struct ExplorationSession: Identifiable {
 
     // 路线点
     var routePoints: [CLLocation] = []
+
+    // 本次探索发现的POI列表
+    var discoveredPOIs: [DiscoveredPOIInfo] = []
+}
+
+// 探索中发现的POI简要信息
+struct DiscoveredPOIInfo {
+    let name: String
+    let type: String
+    let resourceCount: Int
 }
 
 // MARK: - 探索结果
@@ -193,7 +209,17 @@ class ExplorationManager: ObservableObject {
 
     /// 结束探索
     func endExploration(endLocation: CLLocation?) async -> ExplorationResult? {
-        guard state == .exploring, var session = currentSession else {
+        // 防止重复点击：如果已经在结束中，忽略
+        guard state == .exploring else {
+            if state == .ending {
+                appLog(.warning, category: "探索", message: "正在结束中，请稍候...")
+            } else {
+                appLog(.warning, category: "探索", message: "没有进行中的探索")
+            }
+            return nil
+        }
+
+        guard var session = currentSession else {
             appLog(.warning, category: "探索", message: "没有进行中的探索")
             return nil
         }
@@ -218,12 +244,16 @@ class ExplorationManager: ObservableObject {
         session.gridCount = currentGridCount
         session.caloriesBurned = currentCalories
 
-        // 更新数据库
+        // 更新数据库（带超时控制，最多等待10秒）
         do {
-            try await updateSessionInDatabase(session, endLocation: endLocation)
+            try await withTimeout(seconds: 10) {
+                try await self.updateSessionInDatabase(session, endLocation: endLocation)
+            }
             appLog(.success, category: "探索", message: "探索会话已保存")
         } catch {
+            // 即使保存失败，也继续完成本地状态重置
             appLog(.error, category: "探索", message: "保存探索会话失败: \(error.localizedDescription)")
+            appLog(.warning, category: "探索", message: "本地数据将在下次启动时同步")
         }
 
         // 创建结果
@@ -251,6 +281,24 @@ class ExplorationManager: ObservableObject {
         appLog(.success, category: "探索", message: "探索结束！距离: \(String(format: "%.2f", result.distanceKm))km, 时长: \(result.durationMinutes)分钟, 面积: \(result.areaDisplay)")
 
         return result
+    }
+
+    /// 带超时的异步操作
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
     }
 
     /// 取消探索
@@ -308,6 +356,11 @@ class ExplorationManager: ObservableObject {
 
                     // 计算热量（简化公式：距离km × 体重kg × 0.5）
                     currentCalories = (currentDistance / 1000) * userWeight * 0.5
+
+                    // 每100米打印一次进度
+                    if Int(currentDistance) % 100 < Int(delta) + 1 {
+                        appLog(.info, category: "探索进度", message: "已行走: \(distanceDisplay), 网格: \(currentGridCount)个, 时长: \(durationDisplay)")
+                    }
                 }
             }
         }
@@ -317,9 +370,24 @@ class ExplorationManager: ObservableObject {
         if !exploredGrids.contains(grid) {
             exploredGrids.insert(grid)
             currentGridCount = exploredGrids.count
+            appLog(.success, category: "新网格", message: "发现新区域! 当前网格数: \(currentGridCount)")
         }
 
         lastLocation = location
+    }
+
+    /// 记录发现的POI（由POIManager调用）
+    func recordDiscoveredPOI(name: String, type: String, resourceCount: Int) {
+        guard isExploring, var session = currentSession else {
+            appLog(.warning, category: "探索", message: "无法记录POI：没有进行中的探索")
+            return
+        }
+
+        let poiInfo = DiscoveredPOIInfo(name: name, type: type, resourceCount: resourceCount)
+        session.discoveredPOIs.append(poiInfo)
+        currentSession = session
+
+        appLog(.info, category: "探索", message: "记录POI到会话: \(name) (\(type)), 资源: \(resourceCount)")
     }
 
     // MARK: - 私有方法

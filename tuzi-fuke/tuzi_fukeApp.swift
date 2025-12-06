@@ -21,12 +21,11 @@ struct tuzi_fukeApp: App {
         setupApp()
     }
 
-    // MARK: - SwiftData容器
+    // MARK: - SwiftData容器 (暂时保留，后续可能移除)
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
-            CachedCheckinPhoto.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -91,12 +90,14 @@ extension tuzi_fukeApp {
         let _ = AuthManager.shared
         let _ = LocationManager.shared
         let _ = DataManager.shared
-        let _ = CheckinDataStore.shared
+
+        // 配置通义千问 API Key
+        AILootDescriptionGenerator.setAPIKey("sk-6f72d30a99bd4f2c9ec3426483440f04")
 
         print("🔐 [App] AuthManager已初始化")
         print("📍 [App] LocationManager已初始化")
         print("💾 [App] DataManager已初始化")
-        print("💿 [App] CheckinDataStore已初始化")
+        print("🤖 [App] AI (通义千问) 已配置")
         print("📱 [App] MapKit已导入")
         print("🗺️ [App] CoreLocation已导入")
 
