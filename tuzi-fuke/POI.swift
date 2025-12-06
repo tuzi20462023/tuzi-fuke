@@ -12,31 +12,28 @@ import MapKit
 // MARK: - POI 类型
 
 enum POIType: String, CaseIterable, Codable {
-    case supermarket = "supermarket"
-    case restaurant = "restaurant"
-    case hospital = "hospital"
-    case school = "school"
+    // 旅行风格类型
+    case cafe = "cafe"
+    case bookstore = "bookstore"
     case park = "park"
-    case gasStation = "gas_station"
-    case factory = "factory"
+    case restaurant = "restaurant"
+    case attraction = "attraction"
+    case mall = "mall"
     case convenienceStore = "convenience_store"
-    case bank = "bank"
-    case pharmacy = "pharmacy"
+    case gym = "gym"
     case other = "other"
 
     /// 显示名称
     var displayName: String {
         switch self {
-        case .supermarket: return "超市"
-        case .restaurant: return "餐厅"
-        case .hospital: return "医院"
-        case .school: return "学校"
+        case .cafe: return "咖啡店"
+        case .bookstore: return "书店"
         case .park: return "公园"
-        case .gasStation: return "加油站"
-        case .factory: return "工厂"
+        case .restaurant: return "餐厅"
+        case .attraction: return "景点"
+        case .mall: return "商场"
         case .convenienceStore: return "便利店"
-        case .bank: return "银行"
-        case .pharmacy: return "药店"
+        case .gym: return "健身房"
         case .other: return "其他"
         }
     }
@@ -44,68 +41,60 @@ enum POIType: String, CaseIterable, Codable {
     /// 图标名称
     var iconName: String {
         switch self {
-        case .supermarket: return "cart.fill"
-        case .restaurant: return "fork.knife"
-        case .hospital: return "cross.fill"
-        case .school: return "book.fill"
+        case .cafe: return "cup.and.saucer.fill"
+        case .bookstore: return "book.fill"
         case .park: return "leaf.fill"
-        case .gasStation: return "fuelpump.fill"
-        case .factory: return "building.2.fill"
+        case .restaurant: return "fork.knife"
+        case .attraction: return "building.columns.fill"
+        case .mall: return "bag.fill"
         case .convenienceStore: return "storefront.fill"
-        case .bank: return "banknote.fill"
-        case .pharmacy: return "pills.fill"
+        case .gym: return "figure.run"
         case .other: return "mappin.circle.fill"
         }
     }
 
-    /// 颜色（十六进制）
+    /// 颜色（十六进制）- 旅行风格温暖色调
     var color: String {
         switch self {
-        case .supermarket: return "#44AA44"      // 绿色
-        case .restaurant: return "#FF8800"       // 橙色
-        case .hospital: return "#FF4444"         // 红色
-        case .school: return "#AA44AA"           // 紫色
-        case .park: return "#44AAAA"             // 青色
-        case .gasStation: return "#4444FF"       // 蓝色
-        case .factory: return "#888888"          // 灰色
-        case .convenienceStore: return "#66BB66" // 浅绿
-        case .bank: return "#FFD700"             // 金色
-        case .pharmacy: return "#FF6B6B"         // 浅红
-        case .other: return "#666666"            // 深灰
+        case .cafe: return "#8B4513"        // 咖啡棕
+        case .bookstore: return "#4A90D9"   // 书香蓝
+        case .park: return "#2ECC71"        // 自然绿
+        case .restaurant: return "#E74C3C"  // 美食红
+        case .attraction: return "#9B59B6"  // 文化紫
+        case .mall: return "#F39C12"        // 购物橙
+        case .convenienceStore: return "#1ABC9C" // 便利青
+        case .gym: return "#3498DB"         // 活力蓝
+        case .other: return "#95A5A6"       // 温柔灰
         }
     }
 
-    /// 资源数量范围
+    /// 收集品数量范围（旅行纪念品）
     var resourceRange: ClosedRange<Int> {
         switch self {
-        case .supermarket: return 150...250
-        case .restaurant: return 30...60
-        case .hospital: return 80...150
-        case .school: return 50...100
-        case .park: return 40...80
-        case .gasStation: return 60...120
-        case .factory: return 100...200
-        case .convenienceStore: return 40...80
-        case .bank: return 80...150
-        case .pharmacy: return 50...100
-        case .other: return 20...50
+        case .cafe: return 20...40          // 咖啡豆、明信片等
+        case .bookstore: return 30...50     // 书签、便签等
+        case .park: return 40...70          // 落叶、照片等
+        case .restaurant: return 25...45    // 美食照片、特色调料等
+        case .attraction: return 50...80    // 纪念章、门票等
+        case .mall: return 35...60          // 购物袋、小样等
+        case .convenienceStore: return 15...30  // 零食、收据等
+        case .gym: return 20...35           // 运动记录等
+        case .other: return 15...25
         }
     }
 
-    /// MapKit 搜索关键词
+    /// MapKit 搜索关键词（旅行风格）
     var searchKeywords: [String] {
         switch self {
-        case .supermarket: return ["超市", "商场", "购物中心", "华润万家", "沃尔玛", "永辉"]
-        case .restaurant: return ["餐厅", "饭店", "美食"]
-        case .hospital: return ["医院", "诊所", "卫生院"]
-        case .school: return ["学校", "大学", "中学", "小学"]
-        case .park: return ["公园", "广场", "绿地"]
-        case .gasStation: return ["加油站", "中石油", "中石化"]
-        case .factory: return ["工厂", "工业园", "产业园"]
-        case .convenienceStore: return ["便利店", "美宜佳", "7-11", "全家"]
-        case .bank: return ["银行", "ATM"]
-        case .pharmacy: return ["药店", "药房", "大药房"]
-        case .other: return ["商店"]
+        case .cafe: return ["咖啡", "咖啡店", "咖啡馆", "星巴克", "瑞幸", "Manner"]
+        case .bookstore: return ["书店", "书城", "书屋", "西西弗", "新华书店", "诚品"]
+        case .park: return ["公园", "广场", "花园", "绿地", "湿地公园"]
+        case .restaurant: return ["餐厅", "美食", "特色菜", "网红店", "老字号"]
+        case .attraction: return ["景点", "博物馆", "纪念馆", "古迹", "展览馆", "美术馆"]
+        case .mall: return ["商场", "购物中心", "百货", "万象城", "万达"]
+        case .convenienceStore: return ["便利店", "美宜佳", "7-11", "全家", "罗森"]
+        case .gym: return ["健身房", "健身中心", "游泳馆", "运动中心", "瑜伽"]
+        case .other: return ["商店", "店铺"]
         }
     }
 }
@@ -177,7 +166,7 @@ struct POI: Identifiable, Codable, Equatable {
 // MARK: - MKMapItem 扩展
 
 extension MKMapItem {
-    /// 推断 POI 类型
+    /// 推断 POI 类型（旅行风格）
     func inferPOIType() -> POIType {
         let name = self.name?.lowercased() ?? ""
         let category = self.pointOfInterestCategory
@@ -185,57 +174,63 @@ extension MKMapItem {
         // 根据 MapKit 类别判断
         if let cat = category {
             switch cat {
-            case .hospital, .pharmacy:
-                if name.contains("药") { return .pharmacy }
-                return .hospital
-            case .school, .university:
-                return .school
+            case .cafe:
+                return .cafe
             case .park, .nationalPark:
                 return .park
-            case .gasStation:
-                return .gasStation
-            case .restaurant, .cafe, .bakery, .foodMarket:
+            case .restaurant, .bakery, .foodMarket:
                 return .restaurant
-            case .bank, .atm:
-                return .bank
+            case .museum:
+                return .attraction
+            case .store:
+                return .mall
+            case .fitnessCenter:
+                return .gym
             default:
                 break
             }
         }
 
-        // 根据名称判断
-        if name.contains("超市") || name.contains("商场") || name.contains("购物") ||
-           name.contains("华润") || name.contains("沃尔玛") || name.contains("永辉") {
-            return .supermarket
+        // 根据名称判断（旅行风格）
+        // 咖啡店
+        if name.contains("咖啡") || name.contains("coffee") || name.contains("星巴克") ||
+           name.contains("starbucks") || name.contains("瑞幸") || name.contains("manner") {
+            return .cafe
         }
+        // 书店
+        if name.contains("书店") || name.contains("书城") || name.contains("书屋") ||
+           name.contains("西西弗") || name.contains("新华书店") || name.contains("诚品") {
+            return .bookstore
+        }
+        // 公园
+        if name.contains("公园") || name.contains("广场") || name.contains("花园") ||
+           name.contains("绿地") {
+            return .park
+        }
+        // 景点
+        if name.contains("博物馆") || name.contains("纪念馆") || name.contains("美术馆") ||
+           name.contains("展览") || name.contains("古迹") || name.contains("遗址") {
+            return .attraction
+        }
+        // 商场
+        if name.contains("商场") || name.contains("购物") || name.contains("百货") ||
+           name.contains("万象城") || name.contains("万达") || name.contains("天河城") {
+            return .mall
+        }
+        // 便利店
         if name.contains("便利店") || name.contains("美宜佳") || name.contains("7-11") ||
            name.contains("全家") || name.contains("罗森") {
             return .convenienceStore
         }
-        if name.contains("医院") || name.contains("诊所") || name.contains("卫生") {
-            return .hospital
+        // 健身房
+        if name.contains("健身") || name.contains("游泳") || name.contains("瑜伽") ||
+           name.contains("运动") || name.contains("体育馆") {
+            return .gym
         }
-        if name.contains("药店") || name.contains("药房") || name.contains("大药房") {
-            return .pharmacy
-        }
-        if name.contains("学校") || name.contains("大学") || name.contains("中学") || name.contains("小学") {
-            return .school
-        }
-        if name.contains("公园") || name.contains("广场") {
-            return .park
-        }
-        if name.contains("加油站") || name.contains("中石油") || name.contains("中石化") {
-            return .gasStation
-        }
+        // 餐厅
         if name.contains("餐") || name.contains("饭店") || name.contains("美食") ||
-           name.contains("小吃") || name.contains("面馆") {
+           name.contains("小吃") || name.contains("面馆") || name.contains("火锅") {
             return .restaurant
-        }
-        if name.contains("工厂") || name.contains("工业") || name.contains("产业园") {
-            return .factory
-        }
-        if name.contains("银行") || name.contains("ATM") {
-            return .bank
         }
 
         return .other
